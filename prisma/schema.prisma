@@ -1,0 +1,78 @@
+// Project Brain OS — Data Schema
+// Faithful port of sqlite_store.py (SQLite + FTS5 + Knowledge Graph + Vault)
+// JSON-typed fields are stored as strings and parsed in src/lib/brain/*
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Project {
+  id             String   @id
+  name           String
+  slug           String   @unique
+  rootPath       String   @default("")
+  keywords       String   @default("[]") // JSON string[]
+  gitRemotes     String   @default("[]") // JSON string[]
+  rollingSummary String   @default("")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now())
+
+  items     Item[]
+  decisions Decision[]
+  edges     GraphEdge[]
+}
+
+model Item {
+  id                 String   @id
+  projectId          String?
+  itemType           String // note | screenshot | terminal | clip
+  title              String
+  rawContent         String
+  structuredSummary  String   @default("")
+  visualDescription  String   @default("")
+  filePath           String   @default("")
+  assetPath          String   @default("")
+  sourceApp          String   @default("")
+  sourceUrl          String   @default("")
+  metadata           String   @default("{}") // JSON object
+  capturedAt         DateTime @default(now())
+
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, capturedAt])
+}
+
+model Decision {
+  id           String   @id
+  projectId    String
+  title        String
+  decision     String
+  alternatives String   @default("[]") // JSON string[]
+  reasoning    String
+  outcome      String   @default("Active")
+  sourceItemId String?
+  decidedAt    DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, decidedAt])
+}
+
+model GraphEdge {
+  id           String   @id
+  projectId    String?
+  sourceNode   String
+  targetNode   String
+  relationType String // FIXED_BY | MENTIONED_IN | DECIDED_ON | RELATED_TO
+  weight       Float    @default(1.0)
+  createdAt    DateTime @default(now())
+
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+}

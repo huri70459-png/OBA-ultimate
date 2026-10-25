@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Project Brain OS — Universal Capture, Memory & Execution</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background-color: #090d16; color: #e2e8f0; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .glass { background: rgba(17, 24, 39, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+    .tab-active { background: rgba(99, 102, 241, 0.18); color: #818cf8; border-color: #6366f1; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #090d16; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+  </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden select-none">
+
+  <!-- TOP COMMAND BAR -->
+  <header class="h-14 border-b border-slate-800/80 bg-slate-950/90 px-4 flex items-center justify-between shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-600/30">🧠</div>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="font-bold tracking-tight text-white text-sm">PROJECT BRAIN OS</span>
+          <span class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Local SQLite + FTS5 Active</span>
+        </div>
+        <p class="text-[11px] text-slate-400">Everything you see, decide, and build — searchable, linked, and ready for AI execution.</p>
+      </div>
+    </div>
+
+    <!-- UNIVERSAL SEMANTIC SEARCH -->
+    <div class="flex-1 max-w-xl mx-6">
+      <div class="relative">
+        <input id="globalSearchInput" type="text" placeholder="Search screenshots, red Render logs, decisions, or files... (Enter)"
+          class="w-full bg-slate-900/90 border border-slate-700/70 rounded-lg pl-9 pr-20 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+          onkeydown="if(event.key==='Enter') runSearch()" />
+        <span class="absolute left-3 top-2 text-slate-500 text-xs">🔍</span>
+        <button onclick="runSearch()" class="absolute right-1.5 top-1 px-2.5 py-0.5 bg-slate-800 hover:bg-slate-700 text-[11px] rounded text-slate-300">Search</button>
+      </div>
+    </div>
+
+    <!-- QUICK ACTIONS -->
+    <div class="flex items-center gap-2">
+      <button onclick="openCaptureModal()" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs flex items-center gap-1.5 shadow-lg shadow-indigo-600/20">
+        <span>⚡ Zero-Save Capture</span>
+        <kbd class="text-[10px] bg-indigo-700 px-1.5 py-0.5 rounded">Alt+S</kbd>
+      </button>
+      <button onclick="runSelfTest()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs border border-slate-700">
+        🩺 Run Self-Test
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN 3-PANE WORKSPACE -->
+  <div class="flex-1 flex overflow-hidden">
+
+    <!-- LEFT SIDEBAR: AUTO-PROJECTS & HEALTH SCORE -->
+    <aside class="w-64 border-r border-slate-800/80 bg-slate-950/60 flex flex-col justify-between p-3 shrink-0">
+      <div class="space-y-4 overflow-y-auto">
+        <div>
+          <div class="flex items-center justify-between px-2 mb-2">
+            <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Project Spaces</span>
+            <button onclick="openNewProjectModal()" class="text-xs text-indigo-400 hover:text-indigo-300">+ New</button>
+          </div>
+          <div id="projectList" class="space-y-1"></div>
+        </div>
+
+        <!-- ACTIVE PROJECT HEALTH SCORE CARD -->
+        <div id="healthCard" class="p-3 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-slate-400">Knowledge Health</span>
+            <span id="healthScoreBadge" class="text-xs font-bold text-emerald-400">95%</span>
+          </div>
+          <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+            <div id="healthBar" class="bg-emerald-500 h-full transition-all duration-300" style="width: 95%"></div>
+          </div>
+          <p id="projectRootPath" class="text-[10px] text-slate-500 font-mono truncate"></p>
+        </div>
+      </div>
+
+      <!-- MCP SERVER & HOTKEY STATUS FOOTER -->
+      <div class="p-2.5 rounded-lg bg-slate-900/50 border border-slate-800/80 text-[11px] text-slate-400 space-y-1">
+        <div class="flex items-center justify-between">
+          <span>MCP Bridge</span>
+          <span class="text-emerald-400 font-mono">mcp_server.py</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span>Hotkey Agent</span>
+          <span class="text-indigo-400 font-mono">desktop_agent.py</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CENTER WORKSPACE: TABS (EDITOR / TIMELINE / DECISION GRAPH / CONTEXT BUILDER) -->
+    <main class="flex-1 flex flex-col bg-slate-900/30 overflow-hidden">
+      <!-- NAVIGATION TABS -->
+      <div class="h-11 border-b border-slate-800/80 px-4 flex items-center justify-between bg-slate-950/40 shrink-0">
+        <div class="flex items-center gap-2">
+          <button id="tab-workspace" onclick="switchTab('workspace')" class="px-3 py-1.5 rounded-md text-xs font-medium border border-transparent tab-active">
+            📝 Vault & Markdown Editor
+          </button>
+          <button id="tab-timeline" onclick="switchTab('timeline')" class="px-3 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-slate-200 border border-transparent">
+            🕒 Universal Timeline
+          </button>
+          <button id="tab-graph" onclick="switchTab('graph')" class="px-3 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-slate-200 border border-transparent">
+            🕸️ Decision & Knowledge Graph
+          </button>
+          <button id="tab-context" onclick="switchTab('context')" class="px-3 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-slate-200 border border-transparent">
+            🚀 Context Injector & Prompt Structurer
+          </button>
+        </div>
+        <div id="toastBanner" class="hidden text-xs px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"></div>
+      </div>
+
+      <!-- TAB 1: VAULT & EDITOR -->
+      <section id="view-workspace" class="flex-1 flex overflow-hidden">
+        <!-- Item Stream List -->
+        <div class="w-80 border-r border-slate-800/80 flex flex-col overflow-hidden bg-slate-950/30">
+          <div class="p-3 border-b border-slate-800/60 flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-300">Captured Project Memory</span>
+            <span id="itemCountBadge" class="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-400">0</span>
+          </div>
+          <div id="projectItemsList" class="flex-1 overflow-y-auto divide-y divide-slate-800/50"></div>
+        </div>
+
+        <!-- Live Markdown & Action Inspector -->
+        <div class="flex-1 flex flex-col p-5 overflow-y-auto space-y-4 select-text">
+          <div class="flex items-center justify-between">
+            <input id="editorTitle" type="text" placeholder="Note or Capture Title..."
+              class="bg-transparent text-lg font-bold text-white focus:outline-none w-2/3 border-b border-transparent focus:border-indigo-500 pb-1" />
+            <div class="flex items-center gap-2">
+              <select id="editorItemType" class="bg-slate-800 text-xs text-slate-200 rounded px-2.5 py-1.5 border border-slate-700">
+                <option value="note">📝 Markdown Note</option>
+                <option value="screenshot">📸 Screenshot / OCR</option>
+                <option value="terminal">💻 Terminal Log</option>
+                <option value="clip">📋 Web Clip</option>
+              </select>
+              <button onclick="saveFromEditor()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-medium">
+                Save to Vault (Zero-Tag)
+              </button>
+            </div>
+          </div>
+
+          <!-- Auto-Extracted Action / Fix Box -->
+          <div id="actionFixBox" class="hidden p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-between">
+            <div>
+              <span class="text-[10px] uppercase font-bold text-amber-400 block">Snip → Action Detected</span>
+              <code id="actionFixCommand" class="text-xs text-amber-200 font-mono"></code>
+            </div>
+            <button onclick="copyFixCommand()" class="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 rounded text-xs">Copy Fix</button>
+          </div>
+
+          <textarea id="editorBody" rows="16" placeholder="Paste terminal error, write architectural decision ('Decision: ... Reason: ... Alternatives: ...'), or type notes..."
+            class="w-full flex-1 bg-slate-950/70 border border-slate-800 rounded-xl p-4 text-xs font-mono text-slate-200 focus:outline-none focus:border-indigo-500 resize-none leading-relaxed"></textarea>
+
+          <div class="flex items-center justify-between text-[11px] text-slate-500">
+            <span id="editorFilePath">Vault Path: Ready for auto-routing</span>
+            <span id="editorModelRoute">Model Route: Auto</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: UNIVERSAL TIMELINE -->
+      <section id="view-timeline" class="hidden flex-1 p-6 overflow-y-auto select-text">
+        <div class="max-w-4xl mx-auto space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-base font-bold text-white">Universal Chronological Timeline</h2>
+              <p class="text-xs text-slate-400">Humans remember by time, not folders. Every screenshot, error, and note across all projects.</p>
+            </div>
+            <input id="timelineDateFilter" type="date" onchange="loadTimeline()"
+              class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200" />
+          </div>
+          <div id="timelineContainer" class="space-y-3 pt-2"></div>
+        </div>
+      </section>
+
+      <!-- TAB 3: DECISION & KNOWLEDGE GRAPH -->
+      <section id="view-graph" class="hidden flex-1 p-6 overflow-y-auto select-text">
+        <div class="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Decision Intelligence -->
+          <div class="glass rounded-xl p-4 space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-sm font-bold text-white">🏛️ Decision Graph ("Why did we choose X?")</h3>
+                <p class="text-[11px] text-slate-400">Prevents AI coding sessions from reverting past architectural choices.</p>
+              </div>
+              <button onclick="promptQuickDecision()" class="px-2.5 py-1 bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 rounded text-xs">+ Log Decision</button>
+            </div>
+            <div id="decisionList" class="space-y-3"></div>
+          </div>
+
+          <!-- Dynamic Knowledge Graph Edges -->
+          <div class="glass rounded-xl p-4 space-y-4">
+            <div>
+              <h3 class="text-sm font-bold text-white">🕸️ Living Knowledge Graph Edges</h3>
+              <p class="text-[11px] text-slate-400">Auto-extracted relationships between files, errors, fixes, and decisions.</p>
+            </div>
+            <div id="graphEdgesList" class="space-y-2 font-mono text-xs"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: 3-TIER CONTEXT INJECTOR & ANTI-DRIFT PROMPT BUILDER -->
+      <section id="view-context" class="hidden flex-1 p-6 overflow-y-auto select-text">
+        <div class="max-w-4xl mx-auto space-y-4">
+          <div class="glass rounded-xl p-5 space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <h2 class="text-base font-bold text-white">🚀 Context Injection Engine & Prompt Structurer</h2>
+                <p class="text-xs text-slate-400">Eliminates token exhaustion and context drift. Combines Tier-1 Summary + Tier-2 Decisions + Tier-3 Evidence with your raw task.</p>
+              </div>
+              <button onclick="copyContextPrompt()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow-lg shadow-emerald-600/20">
+                📋 Copy Grounded Prompt for Claude / Cursor
+              </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <input id="contextFocusQuery" type="text" placeholder="Optional focus keyword (e.g. render, gateway, playwright)..."
+                class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200" />
+              <input id="contextRawGoal" type="text" placeholder="Type your raw, unstructured task/idea here — Brain OS will structure it..."
+                class="md:col-span-2 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200" />
+            </div>
+            <button onclick="generateContextPayload()" class="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium">
+              ⚡ Synthesize 3-Tier Context + Rewrite Prompt
+            </button>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2">
+              <div>
+                <span class="text-[11px] font-semibold uppercase text-slate-400 block mb-1">Structured Anti-Drift Prompt (Ready to Paste)</span>
+                <textarea id="structuredPromptOutput" rows="15" readonly
+                  class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs font-mono text-emerald-300"></textarea>
+              </div>
+              <div>
+                <span class="text-[11px] font-semibold uppercase text-slate-400 block mb-1">Raw 3-Tier JSON Payload (Served via MCP)</span>
+                <textarea id="rawJsonContextOutput" rows="15" readonly
+                  class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs font-mono text-indigo-300"></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ZERO-SAVE CAPTURE HUD MODAL -->
+  <div id="captureModal" class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-50">
+    <div class="glass w-full max-w-xl rounded-2xl p-6 space-y-4 border border-indigo-500/30 shadow-2xl">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="text-lg">⚡</span>
+          <h3 class="text-sm font-bold text-white">Universal Zero-Save Capture HUD</h3>
+        </div>
+        <button onclick="closeCaptureModal()" class="text-slate-400 hover:text-white text-xs">ESC ✕</button>
+      </div>
+      <p class="text-xs text-slate-400">No folder picking. Paste any error log, screenshot OCR text, or architectural thought. Project Brain OS auto-detects the project, extracts fixes, and updates the graph.</p>
+
+      <div class="grid grid-cols-2 gap-3">
+        <input id="hudWindowTitle" type="text" placeholder="Simulated Active Window (e.g. Terminal - gateway.mjs)"
+          class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200" />
+        <input id="hudVisualHint" type="text" placeholder="Visual Context Hint (e.g. Red Render deploy error)"
+          class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200" />
+      </div>
+
+      <textarea id="hudRawContent" rows="6" placeholder="Paste error message, code snippet, or Decision note..."
+        class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs font-mono text-slate-100"></textarea>
+
+      <div class="flex justify-end gap-2">
+        <button onclick="closeCaptureModal()" class="px-3 py-1.5 rounded-lg bg-slate-800 text-xs text-slate-300">Cancel</button>
+        <button onclick="submitHudCapture()" class="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white">
+          Capture & Auto-Route Now
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let projects = [];
+    let activeProjectId = null;
+    let currentItems = [];
+
+    async function initWorkspace() {
+      const res = await fetch('/projects');
+      const data = await res.json();
+      projects = data.projects || [];
+      renderProjectSidebar();
+      if (projects.length > 0) {
+        selectProject(projects[0].id);
+      }
+    }
+
+    function renderProjectSidebar() {
+      const list = document.getElementById('projectList');
+      list.innerHTML = projects.map(p => `
+        <button onclick="selectProject('${p.id}')"
+          class="w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-between transition ${p.id === activeProjectId ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30' : 'text-slate-300 hover:bg-slate-900'}">
+          <span class="truncate">📁 ${p.name}</span>
+          <span class="text-[10px] text-slate-500">${(p.keywords || []).length} keys</span>
+        </button>
+      `).join('');
+    }
+
+    async function selectProject(projectId) {
+      activeProjectId = projectId;
+      renderProjectSidebar();
+      const res = await fetch(`/project-details?project_id=${encodeURIComponent(projectId)}`);
+      const data = await res.json();
+
+      document.getElementById('healthScoreBadge').innerText = `${data.health_score || 90}%`;
+      document.getElementById('healthBar').style.width = `${data.health_score || 90}%`;
+      document.getElementById('projectRootPath').innerText = data.project?.root_path || '';
+
+      currentItems = data.items || [];
+      document.getElementById('itemCountBadge').innerText = currentItems.length;
+      renderItemsList(currentItems);
+      renderDecisionsAndGraph(data.decisions || [], data.graph_edges || []);
+
+      if (currentItems.length > 0) {
+        loadItemIntoEditor(currentItems[0].id);
+      }
+      generateContextPayload();
+    }
+
+    function renderItemsList(items) {
+      const container = document.getElementById('projectItemsList');
+      if (!items.length) {
+        container.innerHTML = `<div class="p-4 text-xs text-slate-500">No captures yet. Click ⚡ Zero-Save Capture above!</div>`;
+        return;
+      }
+      const icons = { screenshot: '📸', terminal: '💻', note: '📝', clip: '📋' };
+      container.innerHTML = items.map(it => `
+        <div onclick="loadItemIntoEditor('${it.id}')" class="p-3 hover:bg-slate-900/70 cursor-pointer space-y-1">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-200 truncate">${icons[it.item_type] || '📄'} ${it.title}</span>
+            <span class="text-[10px] text-slate-500">${(it.captured_at || '').slice(11, 16)}</span>
+          </div>
+          <p class="text-[11px] text-slate-400 line-clamp-2">${it.structured_summary || it.raw_content}</p>
+        </div>
+      `).join('');
+    }
+
+    function loadItemIntoEditor(itemId) {
+      const item = currentItems.find(i => i.id === itemId);
+      if (!item) return;
+      document.getElementById('editorTitle').value = item.title || '';
+      document.getElementById('editorBody').value = item.raw_content || '';
+      document.getElementById('editorItemType').value = item.item_type || 'note';
+      document.getElementById('editorFilePath').innerText = `Vault Path: ${item.file_path || ''}`;
+      document.getElementById('editorModelRoute').innerText = `Model Route: ${item.metadata?.routed_model || 'general-fast-llm'}`;
+
+      const fixBox = document.getElementById('actionFixBox');
+      if (item.metadata && item.metadata.fix) {
+        fixBox.classList.remove('hidden');
+        document.getElementById('actionFixCommand').innerText = item.metadata.fix;
+      } else {
+        fixBox.classList.add('hidden');
+      }
+    }
+
+    async function saveFromEditor() {
+      const title = document.getElementById('editorTitle').value.trim();
+      const body = document.getElementById('editorBody').value.trim();
+      const itemType = document.getElementById('editorItemType').value;
+      if (!body) return;
+
+      const proj = projects.find(p => p.id === activeProjectId);
+      const res = await fetch('/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          raw_content: title ? `# ${title}\n${body}` : body,
+          item_type: itemType,
+          window_title: proj ? proj.name : 'Workspace Editor',
+          source_app: 'ProjectBrainWorkspace'
+        })
+      });
+      const result = await res.json();
+      showToast(result.toast_notification);
+      if (result.project_match?.project_id) {
+        selectProject(result.project_match.project_id);
+      } else if (activeProjectId) {
+        selectProject(activeProjectId);
+      }
+    }
+
+    function renderDecisionsAndGraph(decisions, edges) {
+      const dList = document.getElementById('decisionList');
+      dList.innerHTML = decisions.length ? decisions.map(d => `
+        <div class="p-3 rounded-lg bg-slate-900/90 border border-slate-800 space-y-1">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-indigo-300">${d.title}</span>
+            <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400">${d.outcome}</span>
+          </div>
+          <p class="text-xs text-slate-200"><strong>Chosen:</strong> ${d.decision}</p>
+          <p class="text-[11px] text-slate-400"><strong>Reason:</strong> ${d.reasoning}</p>
+        </div>
+      `).join('') : `<p class="text-xs text-slate-500">No decisions logged yet.</p>`;
+
+      const gList = document.getElementById('graphEdgesList');
+      gList.innerHTML = edges.length ? edges.map(e => `
+        <div class="p-2 rounded bg-slate-900/70 border border-slate-800/80 flex items-center justify-between">
+          <span class="text-slate-300 truncate">${e.source_node}</span>
+          <span class="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-[10px]">${e.relation_type}</span>
+          <span class="text-emerald-300 truncate">${e.target_node}</span>
+        </div>
+      `).join('') : `<p class="text-xs text-slate-500">No graph edges yet.</p>`;
+    }
+
+    async function loadTimeline() {
+      const dateVal = document.getElementById('timelineDateFilter').value;
+      const url = dateVal ? `/timeline?date=${encodeURIComponent(dateVal)}` : '/timeline';
+      const res = await fetch(url);
+      const data = await res.json();
+      const container = document.getElementById('timelineContainer');
+      container.innerHTML = (data.timeline || []).map(t => `
+        <div class="glass p-3.5 rounded-xl flex items-start justify-between">
+          <div class="space-y-1">
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-semibold">${t.project_name || 'Inbox'}</span>
+              <span class="text-xs font-bold text-white">${t.title}</span>
+            </div>
+            <p class="text-xs text-slate-400">${t.structured_summary || ''}</p>
+          </div>
+          <span class="text-[11px] font-mono text-slate-500">${(t.captured_at || '').replace('T', ' ').slice(0, 19)}</span>
+        </div>
+      `).join('');
+    }
+
+    async function generateContextPayload() {
+      if (!activeProjectId) return;
+      const q = document.getElementById('contextFocusQuery').value.trim();
+      const goal = document.getElementById('contextRawGoal').value.trim();
+      const res = await fetch(`/context?project_id=${encodeURIComponent(activeProjectId)}&q=${encodeURIComponent(q)}&goal=${encodeURIComponent(goal)}`);
+      const data = await res.json();
+      document.getElementById('structuredPromptOutput').value = data.structured_prompt_markdown || '';
+      const cleanJson = { ...data };
+      delete cleanJson.structured_prompt_markdown;
+      document.getElementById('rawJsonContextOutput').value = JSON.stringify(cleanJson, null, 2);
+    }
+
+    function copyContextPrompt() {
+      const text = document.getElementById('structuredPromptOutput').value;
+      navigator.clipboard.writeText(text);
+      showToast('📋 Grounded 3-Tier Prompt copied to clipboard!');
+    }
+
+    function copyFixCommand() {
+      const cmd = document.getElementById('actionFixCommand').innerText;
+      navigator.clipboard.writeText(cmd);
+      showToast(`✅ Copied fix: ${cmd}`);
+    }
+
+    async function runSearch() {
+      const q = document.getElementById('globalSearchInput').value.trim();
+      if (!q) return selectProject(activeProjectId);
+      const res = await fetch(`/search?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      switchTab('workspace');
+      currentItems = (data.results || []).map(r => ({
+        ...r,
+        metadata: typeof r.metadata === 'string' ? JSON.parse(r.metadata || '{}') : (r.metadata || {})
+      }));
+      renderItemsList(currentItems);
+      showToast(`🔍 Found ${currentItems.length} semantic/FTS5 result(s) for "${q}"`);
+    }
+
+    async function runSelfTest() {
+      const res = await fetch('/self-test');
+      const data = await res.json();
+      const summary = data.checks.map(c => `[${c.status}] ${c.name}: ${c.detail}`).join('\n');
+      alert(`🩺 PROJECT BRAIN OS SELF-TEST DIAGNOSTICS:\n\n${summary}`);
+      if (activeProjectId) selectProject(activeProjectId);
+    }
+
+    function switchTab(tab) {
+      ['workspace', 'timeline', 'graph', 'context'].forEach(t => {
+        document.getElementById(`view-${t}`).classList.add('hidden');
+        document.getElementById(`tab-${t}`).classList.remove('tab-active');
+      });
+      document.getElementById(`view-${tab}`).classList.remove('hidden');
+      document.getElementById(`tab-${tab}`).classList.add('tab-active');
+      if (tab === 'timeline') loadTimeline();
+      if (tab === 'context') generateContextPayload();
+    }
+
+    function openCaptureModal() {
+      document.getElementById('captureModal').classList.remove('hidden');
+      document.getElementById('hudRawContent').focus();
+    }
+    function closeCaptureModal() {
+      document.getElementById('captureModal').classList.add('hidden');
+    }
+
+    async function submitHudCapture() {
+      const raw = document.getElementById('hudRawContent').value.trim();
+      if (!raw) return;
+      const win = document.getElementById('hudWindowTitle').value.trim();
+      const hint = document.getElementById('hudVisualHint').value.trim();
+      const res = await fetch('/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          raw_content: raw,
+          item_type: hint ? 'screenshot' : 'terminal',
+          window_title: win,
+          visual_hint: hint,
+          source_app: 'ZeroSaveHUD'
+        })
+      });
+      const result = await res.json();
+      closeCaptureModal();
+      document.getElementById('hudRawContent').value = '';
+      showToast(result.toast_notification);
+      if (result.project_match?.project_id) {
+        selectProject(result.project_match.project_id);
+      }
+    }
+
+    async function openNewProjectModal() {
+      const name = prompt('Enter New Project Name (e.g. Scope Guard LAB):');
+      if (!name) return;
+      const kw = prompt('Enter comma-separated fingerprint keywords (e.g. scope-guard, auth, nextjs):', name.toLowerCase());
+      const summary = prompt('Initial Project Summary:', 'Core architecture and execution space.');
+      await fetch('/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          keywords: kw ? kw.split(',').map(s => s.trim()) : [],
+          rolling_summary: summary || ''
+        })
+      });
+      initWorkspace();
+    }
+
+    async function promptQuickDecision() {
+      if (!activeProjectId) return;
+      const title = prompt('Decision Title (e.g. Use Playwright over Selenium):');
+      if (!title) return;
+      const decision = prompt('What was decided?');
+      const reasoning = prompt('Why did you choose this? (Reasoning):');
+      await fetch('/decisions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: activeProjectId, title, decision: decision || title, reasoning: reasoning || 'Logged via Workspace' })
+      });
+      selectProject(activeProjectId);
+    }
+
+    function showToast(msg) {
+      const banner = document.getElementById('toastBanner');
+      banner.innerText = msg;
+      banner.classList.remove('hidden');
+      setTimeout(() => banner.classList.add('hidden'), 5000);
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.altKey && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        openCaptureModal();
+      }
+      if (e.key === 'Escape') closeCaptureModal();
+    });
+
+    initWorkspace();
+  </script>
+</body>
+</html>
