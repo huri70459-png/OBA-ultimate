@@ -54,7 +54,7 @@ export function healthStatus(score: number): string {
 /** Resolved fix commands + files actively mentioned in the Knowledge Graph. */
 function extractFixesAndFiles(
   items: BrainItem[],
-  edges: { sourceNode: string; relationType: string }[]
+  edges: Array<{ sourceNode: string; relationType: string }>
 ): { resolvedFixes: string[]; activeFiles: string[] } {
   const resolvedFixes: string[] = [];
   const activeFiles = new Set<string>();
@@ -97,14 +97,14 @@ export function maybeAutoCompress(): void {
 
 interface TimeBlock {
   projectId: string | null;
-  items: { id: string; itemType: string; title: string; structuredSummary: string; rawContent: string; capturedAt: Date }[];
+  items: Array<{ id: string; itemType: string; title: string; structuredSummary: string; rawContent: string; capturedAt: Date }>;
   start: Date;
   end: Date;
 }
 
 /** Splits an ordered item stream into coding blocks whenever the gap exceeds 90 minutes. */
 function splitIntoBlocks(
-  rows: { id: string; itemType: string; title: string; structuredSummary: string; rawContent: string; projectId: string | null; capturedAt: Date }[]
+  rows: Array<{ id: string; itemType: string; title: string; structuredSummary: string; rawContent: string; projectId: string | null; capturedAt: Date }>
 ): TimeBlock[] {
   const blocks: TimeBlock[] = [];
   let current: TimeBlock | null = null;

@@ -1,12 +1,15 @@
 import type { NextConfig } from "next";
 
+// Enterprise-grade defaults (Tier-1 redesign):
+// - reactStrictMode ON surfaces side-effect and lifecycle bugs in development.
+// - TypeScript/ESLint errors are NEVER ignored: type and lint failures must
+//   break the build so regressions cannot slip into production.
 const nextConfig: NextConfig = {
   output: "standalone",
-  /* config options here */
+  reactStrictMode: true,
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
-  reactStrictMode: false,
 };
 
 export default nextConfig;

@@ -2,6 +2,7 @@
 
 // Project Brain OS — Dark-Mode AI Workspace (single-page app)
 // Port of workspace.html + brain_api.py UI surface, upgraded to Next.js 16 + Prisma.
+// Tier-1 redesign: all chrome routes through Deep Intelligence semantic tokens.
 
 import { useEffect } from "react";
 import { FileText, GitBranch, Rocket, Clock } from "lucide-react";
@@ -21,14 +22,14 @@ import {
 } from "@/components/brain/dialogs";
 import { SettingsDialog } from "@/components/brain/SettingsDialog";
 
-const TABS: { id: WorkspaceTab; label: string; icon: typeof FileText }[] = [
+const TABS: Array<{ id: WorkspaceTab; label: string; icon: typeof FileText }> = [
   { id: "vault", label: "Vault & Markdown Editor", icon: FileText },
   { id: "timeline", label: "Universal Timeline", icon: Clock },
   { id: "graph", label: "Decision & Knowledge Graph", icon: GitBranch },
   { id: "context", label: "Context Injector", icon: Rocket },
 ];
 
-export default function BrainWorkspacePage() {
+const BrainWorkspacePage = () => {
   const booted = useWorkspace((s) => s.booted);
   const bootError = useWorkspace((s) => s.bootError);
   const bootstrap = useWorkspace((s) => s.bootstrap);
@@ -60,10 +61,10 @@ export default function BrainWorkspacePage() {
       <div className="flex min-h-0 flex-1">
         <Sidebar />
 
-        <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[#0a0e19]/60">
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background/40">
           {/* Tab bar */}
-          <div className="flex h-11 shrink-0 items-center justify-between border-b border-slate-800/80 bg-slate-950/40 px-2 md:px-4">
-            <div className="flex items-center gap-1 overflow-x-auto brain-scroll" role="tablist" aria-label="Workspace views">
+          <div className="flex h-11 shrink-0 items-center justify-between border-b border-border/80 bg-background/50 px-2 md:px-4">
+            <div className="brain-scroll flex items-center gap-1 overflow-x-auto" role="tablist" aria-label="Workspace views">
               {TABS.map((t) => {
                 const Icon = t.icon;
                 const active = tab === t.id;
@@ -75,8 +76,8 @@ export default function BrainWorkspacePage() {
                     onClick={() => setTab(t.id)}
                     className={`flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
                       active
-                        ? "border-indigo-500 bg-indigo-500/15 text-indigo-300"
-                        : "border-transparent text-slate-400 hover:text-slate-200"
+                        ? "border-primary/50 bg-primary/15 text-primary-300"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     <Icon className="h-3.5 w-3.5" />
@@ -86,8 +87,8 @@ export default function BrainWorkspacePage() {
                 );
               })}
             </div>
-            <div className="hidden shrink-0 text-[11px] text-slate-500 lg:block">
-              <span className="text-slate-300">{details?.project.name ?? "—"}</span> ·{" "}
+            <div className="hidden shrink-0 text-[11px] text-muted-foreground/80 lg:block">
+              <span className="text-foreground/90">{details?.project.name ?? "—"}</span> ·{" "}
               {details?.items.length ?? 0} items · {details?.decisions.length ?? 0} decisions ·{" "}
               {details?.graphEdges.length ?? 0} edges
             </div>
@@ -98,19 +99,19 @@ export default function BrainWorkspacePage() {
             {!booted && (
               <div className="flex h-full items-center justify-center">
                 <div className="text-center">
-                  <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-slate-700 border-t-indigo-500" />
-                  <p className="text-xs text-slate-500">Booting Project Brain OS…</p>
+                  <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-border border-t-primary" />
+                  <p className="text-xs text-muted-foreground">Booting Project Brain OS…</p>
                 </div>
               </div>
             )}
             {booted && bootError && (
               <div className="flex h-full items-center justify-center p-6">
-                <div className="max-w-md rounded-xl border border-rose-500/30 bg-rose-500/10 p-5 text-center">
-                  <p className="text-sm font-semibold text-rose-300">Boot failure</p>
-                  <p className="mt-1 text-xs text-slate-400">{bootError}</p>
+                <div className="max-w-md rounded-xl border border-destructive/30 bg-destructive/10 p-5 text-center">
+                  <p className="text-sm font-semibold text-destructive">Boot failure</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{bootError}</p>
                   <button
                     onClick={() => window.location.reload()}
-                    className="mt-3 rounded bg-slate-800 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-700"
+                    className="mt-3 rounded bg-muted px-3 py-1.5 text-xs text-foreground/90 hover:bg-accent"
                   >
                     Retry
                   </button>
@@ -138,4 +139,6 @@ export default function BrainWorkspacePage() {
       <SettingsDialog />
     </div>
   );
-}
+};
+
+export default BrainWorkspacePage;

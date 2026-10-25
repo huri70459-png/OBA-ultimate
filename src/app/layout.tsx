@@ -30,11 +30,11 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+const BrainOSLayout = ({
   children,
 }: Readonly<{
   children: React.ReactNode;
-}>) {
+}>) => {
   return (
     <html lang="en" suppressHydrationWarning>
       <body
@@ -45,4 +45,6 @@ export default function RootLayout({
       </body>
     </html>
   );
-}
+};
+
+export default BrainOSLayout;

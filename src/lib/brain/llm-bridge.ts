@@ -23,7 +23,7 @@
 // answers upgrade from excerpts to synthesis without a restart. Base URLs are also
 // overridable (OpenAI-compatible gateways, Azure-style proxies, LM Studio bridges).
 
-import { effectiveSetting, readSettings } from "./settings";
+import { readSettings } from "./settings";
 import type { ContextPayload, LlmBackend, PromptRewriteResult } from "./types";
 
 export const TOKEN_BUDGET = 2500;
@@ -222,7 +222,7 @@ export class HybridLLMBridge {
           signal: AbortSignal.timeout(timeoutMs),
         });
         if (!res.ok) return "";
-        const body = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+        const body = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
         return (body.choices?.[0]?.message?.content ?? "").trim();
       }
 
@@ -244,7 +244,7 @@ export class HybridLLMBridge {
           signal: AbortSignal.timeout(timeoutMs),
         });
         if (!res.ok) return "";
-        const body = (await res.json()) as { content?: { type: string; text?: string }[] };
+        const body = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
         return (body.content ?? [])
           .filter((b) => b.type === "text")
           .map((b) => b.text ?? "")
@@ -269,7 +269,7 @@ export class HybridLLMBridge {
         });
         if (!res.ok) return "";
         const body = (await res.json()) as {
-          candidates?: { content?: { parts?: { text?: string }[] } }[];
+          candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
         };
         return (body.candidates?.[0]?.content?.parts ?? [])
           .map((p) => p.text ?? "")
@@ -310,7 +310,7 @@ export class HybridLLMBridge {
       if (target.provider === "ollama") {
         const res = await fetch(`${cfg.ollamaUrl}/api/tags`, { signal: AbortSignal.timeout(4_000) });
         if (!res.ok) return finish(false, `Ollama responded HTTP ${res.status}`);
-        const body = (await res.json()) as { models?: { name?: string }[] };
+        const body = (await res.json()) as { models?: Array<{ name?: string }> };
         const models = (body.models ?? []).map((m) => m.name ?? "").filter(Boolean);
         return finish(true, models.length ? `Ollama alive — models: ${models.slice(0, 5).join(", ")}` : "Ollama alive — no models pulled yet");
       }
@@ -321,7 +321,7 @@ export class HybridLLMBridge {
           signal: AbortSignal.timeout(10_000),
         });
         if (!res.ok) return finish(false, `OpenAI HTTP ${res.status}: ${(await res.text()).slice(0, 140)}`);
-        const body = (await res.json()) as { data?: { id?: string }[] };
+        const body = (await res.json()) as { data?: Array<{ id?: string }> };
         const ids = (body.data ?? []).map((m) => m.id ?? "").filter(Boolean);
         return finish(true, `Key valid — ${ids.length} models visible (e.g. ${ids.slice(0, 3).join(", ")})`);
       }
@@ -332,7 +332,7 @@ export class HybridLLMBridge {
           signal: AbortSignal.timeout(10_000),
         });
         if (!res.ok) return finish(false, `Anthropic HTTP ${res.status}: ${(await res.text()).slice(0, 140)}`);
-        const body = (await res.json()) as { data?: { id?: string }[] };
+        const body = (await res.json()) as { data?: Array<{ id?: string }> };
         const ids = (body.data ?? []).map((m) => m.id ?? "").filter(Boolean);
         return finish(true, `Key valid — models: ${ids.slice(0, 4).join(", ") || "listed"}`);
       }
@@ -342,7 +342,7 @@ export class HybridLLMBridge {
           signal: AbortSignal.timeout(10_000),
         });
         if (!res.ok) return finish(false, `Gemini HTTP ${res.status}: ${(await res.text()).slice(0, 140)}`);
-        const body = (await res.json()) as { models?: { name?: string }[] };
+        const body = (await res.json()) as { models?: Array<{ name?: string }> };
         const names = (body.models ?? []).map((m) => m.name ?? "").filter(Boolean);
         return finish(true, `Key valid — ${names.length} models visible (e.g. ${names.slice(0, 3).join(", ")})`);
       }

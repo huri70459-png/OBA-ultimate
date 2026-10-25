@@ -121,9 +121,9 @@ export async function recordDuplicateOccurrence(itemId: string): Promise<Duplica
   if (typeof metadata.dedup_fingerprint !== "string") {
     metadata.dedup_fingerprint = contentFingerprint(row.rawContent, row.itemType);
   }
-  const occurrenceCount = Math.max(1, Number(metadata.occurrence_count ?? 1)) + 1;
+  const nextCount = Math.max(1, Number(metadata.occurrence_count ?? 1)) + 1;
   const lastSeenAt = new Date().toISOString();
-  metadata.occurrence_count = occurrenceCount;
+  metadata.occurrence_count = nextCount;
   metadata.last_seen_at = lastSeenAt;
 
   const updated = await db.item.update({
@@ -133,7 +133,7 @@ export async function recordDuplicateOccurrence(itemId: string): Promise<Duplica
 
   return {
     item: toItem({ ...updated, metadata: updated.metadata }),
-    occurrence_count: occurrenceCount,
+    occurrence_count: nextCount,
     last_seen_at: lastSeenAt,
   };
 }

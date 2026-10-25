@@ -1,6 +1,8 @@
 "use client";
 
-// Shared UI atoms for the Brain workspace
+// Shared UI atoms for the Brain workspace.
+// Every style routes through the Deep Intelligence semantic tokens
+// (globals.css) — raw palette values never appear in components.
 
 import { Brain, Camera, Clipboard, FileText, Layers, Terminal } from "lucide-react";
 
@@ -11,32 +13,32 @@ export const ITEM_TYPE_STYLE: Record<
   note: {
     label: "Note",
     icon: FileText,
-    badge: "bg-violet-500/10 text-violet-300 border-violet-500/25",
-    dot: "bg-violet-400",
+    badge: "bg-primary/10 text-primary-300 border-primary/30",
+    dot: "bg-primary-400",
   },
   screenshot: {
     label: "Screenshot / OCR",
     icon: Camera,
-    badge: "bg-sky-500/10 text-sky-300 border-sky-500/25",
-    dot: "bg-sky-400",
+    badge: "bg-info/10 text-info border-info/30",
+    dot: "bg-info",
   },
   terminal: {
     label: "Terminal Log",
     icon: Terminal,
-    badge: "bg-rose-500/10 text-rose-300 border-rose-500/25",
-    dot: "bg-rose-400",
+    badge: "bg-destructive/10 text-destructive border-destructive/30",
+    dot: "bg-destructive",
   },
   clip: {
     label: "Web Clip",
     icon: Clipboard,
-    badge: "bg-amber-500/10 text-amber-300 border-amber-500/25",
-    dot: "bg-amber-400",
+    badge: "bg-warning/10 text-warning border-warning/30",
+    dot: "bg-warning",
   },
   session: {
     label: "Work Session (Compressed)",
     icon: Layers,
-    badge: "bg-emerald-500/10 text-emerald-300 border-emerald-500/25",
-    dot: "bg-emerald-400",
+    badge: "bg-success/10 text-success border-success/30",
+    dot: "bg-success",
   },
 };
 
@@ -50,7 +52,7 @@ export function occurrenceOf(metadata: Record<string, unknown> | undefined | nul
 }
 
 /** ×N chip shown when duplicate captures were folded into an item (v2.1). */
-export function OccurrenceBadge({ metadata }: { metadata?: Record<string, unknown> | null }) {
+export const OccurrenceBadge = ({ metadata }: { metadata?: Record<string, unknown> | null }) => {
   const n = occurrenceOf(metadata);
   if (n <= 1) return null;
   return (
@@ -58,18 +60,22 @@ export function OccurrenceBadge({ metadata }: { metadata?: Record<string, unknow
       title={`Exact duplicate folding: this capture was observed ${n} times (last: ${
         typeof metadata?.last_seen_at === "string" ? metadata.last_seen_at.slice(0, 16).replace("T", " ") : "—"
       })`}
-      className="shrink-0 rounded border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-bold text-sky-300"
+      className="shrink-0 rounded border border-info/30 bg-info/10 px-1.5 py-0.5 text-[10px] font-bold text-info"
     >
       ×{n}
     </span>
   );
-}
+};
 
+/**
+ * Relation palette — stroke values are CSS variables (globals.css) so the SVG
+ * graph renders in the Deep Intelligence world without hardcoding hex colors.
+ */
 export const RELATION_STYLE: Record<string, { stroke: string; chip: string }> = {
-  FIXED_BY: { stroke: "#f59e0b", chip: "text-amber-300 border-amber-500/30 bg-amber-500/10" },
-  DECIDED_ON: { stroke: "#10b981", chip: "text-emerald-300 border-emerald-500/30 bg-emerald-500/10" },
-  MENTIONED_IN: { stroke: "#64748b", chip: "text-slate-300 border-slate-500/30 bg-slate-500/10" },
-  RELATED_TO: { stroke: "#a78bfa", chip: "text-violet-300 border-violet-500/30 bg-violet-500/10" },
+  FIXED_BY: { stroke: "var(--rel-fixed-by)", chip: "text-warning border-warning/30 bg-warning/10" },
+  DECIDED_ON: { stroke: "var(--rel-decided-on)", chip: "text-success border-success/30 bg-success/10" },
+  MENTIONED_IN: { stroke: "var(--rel-mentioned-in)", chip: "text-muted-foreground border-border bg-muted/40" },
+  RELATED_TO: { stroke: "var(--rel-related-to)", chip: "text-primary-300 border-primary/30 bg-primary/10" },
 };
 
 export function relationStyle(rel: string) {

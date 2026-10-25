@@ -79,7 +79,7 @@ export interface AnalysisResult {
     reasoning: string;
     alternatives: string[];
   } | null;
-  graphEdges: { source: string; target: string; relation: string }[];
+  graphEdges: Array<{ source: string; target: string; relation: string }>;
 }
 
 export interface CaptureResult {
@@ -201,25 +201,25 @@ export interface ProjectCompressionReport {
 export interface ContextPayload {
   project_name: string;
   tier_1_rolling_memory: string;
-  tier_2_decision_graph: {
+  tier_2_decision_graph: Array<{
     title: string;
     decision: string;
     reasoning: string;
     outcome: string;
     decidedAt: string;
-  }[];
-  tier_3_recent_and_relevant_evidence: {
+  }>;
+  tier_3_recent_and_relevant_evidence: Array<{
     title: string;
     type: string;
     summary: string;
     visual_context?: string;
     captured_at: string;
-  }[];
-  knowledge_graph_edges: {
+  }>;
+  knowledge_graph_edges: Array<{
     source_node: string;
     target_node: string;
     relation_type: string;
-  }[];
+  }>;
   structured_prompt_markdown?: string;
   // v2 Anti-Drift Prompt Pre-Structurer enrichment
   token_estimate?: number;

@@ -50,7 +50,7 @@ interface ProbeResult {
   latency_ms: number;
 }
 
-const PROVIDER_OPTIONS: { value: string; label: string }[] = [
+const PROVIDER_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "auto", label: "Auto-detect (Ollama → keys → Offline)" },
   { value: "ollama", label: "Ollama (local)" },
   { value: "openai", label: "OpenAI" },
@@ -60,29 +60,25 @@ const PROVIDER_OPTIONS: { value: string; label: string }[] = [
 ];
 
 const inputCls =
-  "w-full rounded border border-slate-700 bg-slate-950/70 px-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:border-indigo-500 focus:outline-none";
+  "w-full rounded border border-input bg-background/70 px-2.5 py-1.5 text-xs text-foreground placeholder-muted-foreground/50 focus:border-primary focus:outline-none";
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1 flex items-baseline justify-between text-[11px] font-medium text-slate-300">
-        {label}
-        {hint ? <span className="ml-2 font-normal text-slate-500">{hint}</span> : null}
-      </span>
-      {children}
-    </label>
-  );
-}
+const Field = ({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) => (
+  <label className="block">
+    <span className="mb-1 flex items-baseline justify-between text-[11px] font-medium text-foreground/85">
+      {label}
+      {hint ? <span className="ml-2 font-normal text-muted-foreground">{hint}</span> : null}
+    </span>
+    {children}
+  </label>
+);
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="mt-1 flex items-center gap-1.5 border-b border-slate-800/80 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-      {children}
-    </p>
-  );
-}
+const SectionTitle = ({ children }: { children: React.ReactNode }) => (
+  <p className="mt-1 flex items-center gap-1.5 border-b border-border/80 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+    {children}
+  </p>
+);
 
-export function SettingsDialog() {
+export const SettingsDialog = () => {
   const open = useWorkspace((s) => s.settingsOpen);
   const close = useWorkspace((s) => s.closeDialog);
   const llmBackend = useWorkspace((s) => s.llmBackend);
@@ -218,31 +214,31 @@ export function SettingsDialog() {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close("settingsOpen")}>
-      <DialogContent className="border-slate-800 bg-[#0d1220] text-slate-200 sm:max-w-2xl">
+      <DialogContent className="border-border bg-card text-foreground sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-white">
-            <KeyRound className="h-4 w-4 text-violet-300" /> AI Backend &amp; Runtime Settings
+          <DialogTitle className="flex items-center gap-2 text-foreground">
+            <KeyRound className="h-4 w-4 text-primary-300" /> AI Backend &amp; Runtime Settings
           </DialogTitle>
-          <DialogDescription className="text-slate-400">
+          <DialogDescription className="text-muted-foreground">
             Live config — no restart needed. Paste an API key to upgrade grounded answers from evidence
             excerpts to real LLM synthesis.
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[60vh] pr-2 brain-scroll">
+        <ScrollArea className="brain-scroll max-h-[60vh] pr-2">
           {loading && !cfg ? (
-            <p className="py-8 text-center text-xs text-slate-500">Loading configuration…</p>
+            <p className="py-8 text-center text-xs text-muted-foreground">Loading configuration…</p>
           ) : (
             <div className="space-y-4 pb-1">
               {/* Effective backend */}
-              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2">
-                <span className="text-[11px] text-slate-400">Effective backend:</span>
-                <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-[11px] font-medium text-violet-300">
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background/60 px-3 py-2">
+                <span className="text-[11px] text-muted-foreground">Effective backend:</span>
+                <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary-300">
                   {backendLabel(effective ?? llmBackend)}
                 </span>
                 {probe && (
                   <span
-                    className={`ml-auto flex items-center gap-1 text-[11px] ${probe.ok ? "text-emerald-300" : "text-rose-300"}`}
+                    className={`ml-auto flex items-center gap-1 text-[11px] ${probe.ok ? "text-success" : "text-destructive"}`}
                   >
                     {probe.ok ? (
                       <CheckCircle2 className="h-3.5 w-3.5" />
@@ -254,7 +250,7 @@ export function SettingsDialog() {
                 )}
               </div>
               {probe && (
-                <p className="rounded border border-slate-800 bg-slate-950/60 px-2.5 py-1.5 font-mono text-[10px] leading-relaxed text-slate-400">
+                <p className="rounded border border-border bg-background/60 px-2.5 py-1.5 font-mono text-[10px] leading-relaxed text-muted-foreground">
                   {probe.detail}
                 </p>
               )}
@@ -317,8 +313,8 @@ export function SettingsDialog() {
                     className={inputCls}
                   />
                 </Field>
-                <details className="rounded border border-slate-800/80 bg-slate-950/40 px-2.5 py-1.5">
-                  <summary className="cursor-pointer text-[11px] text-slate-400">Advanced: API base URLs &amp; timeout</summary>
+                <details className="rounded border border-border/80 bg-background/40 px-2.5 py-1.5">
+                  <summary className="cursor-pointer text-[11px] text-muted-foreground">Advanced: API base URLs &amp; timeout</summary>
                   <div className="mt-2 space-y-2">
                     <Field label="OpenAI base URL" hint="OpenAI-compatible gateways welcome">
                       <input value={openaiBase} onChange={(e) => setOpenaiBase(e.target.value)} className={inputCls} />
@@ -365,7 +361,7 @@ export function SettingsDialog() {
                       <button
                         type="button"
                         onClick={() => setShowToken((v) => !v)}
-                        className="rounded border border-slate-700 bg-slate-800 px-2 text-[10px] text-slate-300 hover:bg-slate-700"
+                        className="rounded border border-border bg-muted px-2 text-[10px] text-foreground/90 hover:bg-accent"
                         aria-label="Toggle token visibility"
                       >
                         {showToken ? "Hide" : "Show"}
@@ -377,32 +373,32 @@ export function SettingsDialog() {
                   <button
                     type="button"
                     onClick={() => setAgentToken("__generate__")}
-                    className="rounded border border-indigo-500/40 bg-indigo-500/10 px-2.5 py-1 text-[11px] text-indigo-300 hover:bg-indigo-500/20"
+                    className="rounded border border-primary/40 bg-primary/10 px-2.5 py-1 text-[11px] text-primary-300 hover:bg-primary/20"
                   >
                     Generate token
                   </button>
                   <button
                     type="button"
                     onClick={() => setAgentToken("__clear__")}
-                    className="rounded border border-slate-700 bg-slate-800 px-2.5 py-1 text-[11px] text-slate-300 hover:bg-slate-700"
+                    className="rounded border border-border bg-muted px-2.5 py-1 text-[11px] text-foreground/90 hover:bg-accent"
                   >
                     Clear token (trusted mode)
                   </button>
                 </div>
                 {agentTokenVisible && (
-                  <p className="rounded border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 font-mono text-[10px] break-all text-emerald-300">
+                  <p className="rounded border border-success/30 bg-success/10 px-2.5 py-1.5 font-mono text-[10px] break-all text-success">
                     New token (copy now — stored masked): {agentTokenVisible}
                   </p>
                 )}
-                <div className="rounded border border-slate-800/80 bg-slate-950/40 px-2.5 py-2">
-                  <p className="mb-1 text-[11px] text-slate-400">
+                <div className="rounded border border-border/80 bg-background/40 px-2.5 py-2">
+                  <p className="mb-1 text-[11px] text-muted-foreground">
                     Desktop agent ingest (clipboard watcher / hotkey snips → this workspace):
                   </p>
-                  <code className="block break-all font-mono text-[10px] text-slate-300">{agentCommand()}</code>
+                  <code className="block break-all font-mono text-[10px] text-foreground/90">{agentCommand()}</code>
                   <button
                     type="button"
                     onClick={() => void navigator.clipboard.writeText(agentCommand())}
-                    className="mt-1.5 flex items-center gap-1 rounded bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300 hover:bg-slate-700"
+                    className="mt-1.5 flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-[10px] text-foreground/90 hover:bg-accent"
                   >
                     <Copy className="h-3 w-3" /> Copy command
                   </button>
@@ -416,7 +412,7 @@ export function SettingsDialog() {
           <button
             onClick={save}
             disabled={saving || loading}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-500 disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary-400 disabled:opacity-50"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${saving ? "animate-spin" : ""}`} />
             {saving ? "Saving & probing…" : "Save & Test Connection"}
@@ -425,4 +421,4 @@ export function SettingsDialog() {
       </DialogContent>
     </Dialog>
   );
-}
+};

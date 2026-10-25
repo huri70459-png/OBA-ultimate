@@ -25,7 +25,7 @@ import type {
   TriageResult,
 } from "./types";
 
-type ProjectRow = {
+interface ProjectRow {
   id: string;
   name: string;
   slug: string;
@@ -42,7 +42,7 @@ type ItemRow = Record<string, unknown> & {
   capturedAt: Date;
 };
 
-type DecisionRow = {
+interface DecisionRow {
   id: string;
   projectId: string;
   title: string;
@@ -677,7 +677,7 @@ export async function searchVault(
   query: string,
   projectId: string | null = null,
   limit = 20
-): Promise<(BrainItem & { rank: number })[]> {
+): Promise<Array<BrainItem & { rank: number }>> {
   const cleanTokens = query
     .split(/\s+/)
     .map((w) => w.replace(/[^a-zA-Z0-9]/g, ""))
@@ -838,7 +838,7 @@ export async function getUniversalTimeline(datePrefix?: string | null, limit = 5
 
 export interface ComputedHealth {
   score: number;
-  gaps: { gap: string; detail: string; severity: "high" | "medium" | "low" }[];
+  gaps: Array<{ gap: string; detail: string; severity: "high" | "medium" | "low" }>;
 }
 
 /**

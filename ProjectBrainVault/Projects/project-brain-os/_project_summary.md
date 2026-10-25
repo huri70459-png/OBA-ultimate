@@ -1,29 +1,40 @@
 # Project Brain OS — Compressed Project Brain
 
 - **Health Score:** 92/100 (EXCELLENT)
-- **Unique Captures Indexed:** 83 (113 observed occurrences after duplicate folding)
-- **Composition:** 47 notes, 0 screenshots, 18 terminal logs
+- **Unique Captures Indexed:** 100 (154 observed occurrences after duplicate folding)
+- **Composition:** 60 notes, 0 screenshots, 20 terminal logs
 - **Decisions Logged:** 25
-- **Last Compressed:** 2026-10-25T22:21:17.896Z
+- **Last Compressed:** 2026-10-25T23:48:22.906Z
 
 ## 1. Compressed Rolling Memory (Tier-1 Prompt Payload)
-Compressed memory for **Project Brain OS** (83 captures: 47 notes, 18 terminals, 18 sessions; auto-synthesized by the Memory Compression Daemon).
+Compressed memory for **Project Brain OS** (100 captures: 60 notes, 20 terminals, 20 sessions; auto-synthesized by the Memory Compression Daemon).
 
 ## Current Focus
-Active themes across recent captures: note, quick, thought, use, session, probe, 3000, fast-memory-structurer.
+Active themes across recent captures: note, 22, quick, thought, use, probe, session, fast-memory-structurer.
 
 ## Recent Activity (last 14 days)
-- 83 captures on record.
-- Latest work session: Work Session 2026-10-25 · 21:29–22:21 · 50 captures
+- 100 captures on record.
+- Latest work session: Work Session 2026-10-25 · 21:29–23:48 · 76 captures
 
 ## Active Decisions (do not violate)
-- **Decision: use SQLite sidecar for vectors in agent-probe-1792**: Decision: use SQLite sidecar for vectors in agent-probe-1792966877190 (Reason: keeps Brain OS dependency-light)
+- **Decision: use SQLite sidecar for vectors in agent-probe-1792**: Decision: use SQLite sidecar for vectors in agent-probe-1792972102068 (Reason: keeps Brain OS dependency-light)
 - **Verification: SQLite over Neo4j**: Use SQLite + FTS5 instead of standalone Neo4j (Reason: Zero-config, portable, single .db file per blueprint)
-- **Decision: use SQLite sidecar for vectors in agent-probe-1792**: Decision: use SQLite sidecar for vectors in agent-probe-1792966802020 (Reason: keeps Brain OS dependency-light)
-- **Decision: use SQLite sidecar for vectors in agent-probe-1792**: Decision: use SQLite sidecar for vectors in agent-probe-1792966794812 (Reason: keeps Brain OS dependency-light)
-- **Decision: use SQLite sidecar for vectors in agent-probe-1792**: Decision: use SQLite sidecar for vectors in agent-probe-1792966724932 (Reason: keeps Brain OS de
+- **Decision: use SQLite sidecar for vectors in agent-probe-1792**: Decision: use SQLite sidecar for vectors in agent-probe-1792972086098 (Reason: keeps Brain OS dependency-light)
+- **Decision: use SQLite sidecar for vectors in agent-probe-1792**: Decision: use SQLite sidecar for vectors in agent-probe-1792972081333 (Reason: keeps Brain OS dependency-light)
+- **Decision: use SQLite sidecar for vectors in agent-probe-1792**: Decision: use SQLite sidecar for vectors in agent-probe-1792966922843 (Reason: keeps Brain OS de
 
 ## 2. Key Architectural Decisions
+- **Decision: use SQLite sidecar for vectors in agent-probe-179297210**: Decision: use SQLite sidecar for vectors in agent-probe-1792972102068 *(Reason: keeps Brain OS dependency-light)*
+- **Verification: SQLite over Neo4j**: Use SQLite + FTS5 instead of standalone Neo4j *(Reason: Zero-config, portable, single .db file per blueprint)*
+- **Decision: use SQLite sidecar for vectors in agent-probe-179297208**: Decision: use SQLite sidecar for vectors in agent-probe-1792972086098 *(Reason: keeps Brain OS dependency-light)*
+- **Decision: use SQLite sidecar for vectors in agent-probe-179297208**: Decision: use SQLite sidecar for vectors in agent-probe-1792972081333 *(Reason: keeps Brain OS dependency-light)*
+- **Verification: SQLite over Neo4j**: Use SQLite + FTS5 instead of standalone Neo4j *(Reason: Zero-config, portable, single .db file per blueprint)*
+- **Decision: use SQLite sidecar for vectors in agent-probe-179296692**: Decision: use SQLite sidecar for vectors in agent-probe-1792966922843 *(Reason: keeps Brain OS dependency-light)*
+- **Verification: SQLite over Neo4j**: Use SQLite + FTS5 instead of standalone Neo4j *(Reason: Zero-config, portable, single .db file per blueprint)*
+- **Decision: use SQLite sidecar for vectors in agent-probe-179296690**: Decision: use SQLite sidecar for vectors in agent-probe-1792966902592 *(Reason: keeps Brain OS dependency-light)*
+- **Verification: SQLite over Neo4j**: Use SQLite + FTS5 instead of standalone Neo4j *(Reason: Zero-config, portable, single .db file per blueprint)*
+- **Decision: use SQLite sidecar for vectors in agent-probe-179296688**: Decision: use SQLite sidecar for vectors in agent-probe-1792966888578 *(Reason: keeps Brain OS dependency-light)*
+- **Verification: SQLite over Neo4j**: Use SQLite + FTS5 instead of standalone Neo4j *(Reason: Zero-config, portable, single .db file per blueprint)*
 - **Decision: use SQLite sidecar for vectors in agent-probe-179296687**: Decision: use SQLite sidecar for vectors in agent-probe-1792966877190 *(Reason: keeps Brain OS dependency-light)*
 - **Verification: SQLite over Neo4j**: Use SQLite + FTS5 instead of standalone Neo4j *(Reason: Zero-config, portable, single .db file per blueprint)*
 - **Decision: use SQLite sidecar for vectors in agent-probe-179296680**: Decision: use SQLite sidecar for vectors in agent-probe-1792966802020 *(Reason: keeps Brain OS dependency-light)*
@@ -38,17 +49,6 @@ Active themes across recent captures: note, quick, thought, use, session, probe,
 - **Decision: use SQLite sidecar for vectors in agent-probe-179296635**: Decision: use SQLite sidecar for vectors in agent-probe-1792966354330 *(Reason: keeps Brain OS dependency-light)*
 - **Decision: use SQLite sidecar for vectors in agent-probe-179296625**: Decision: use SQLite sidecar for vectors in agent-probe-1792966255281 *(Reason: keeps Brain OS dependency-light)*
 - **Verification: SQLite over Neo4j**: Use SQLite + FTS5 instead of standalone Neo4j *(Reason: Zero-config, portable, single .db file per blueprint)*
-- **Verification: SQLite over Neo4j**: Use SQLite + FTS5 instead of standalone Neo4j *(Reason: Zero-config, portable, single .db file per blueprint)*
-- **Verification: SQLite over Neo4j**: Use SQLite + FTS5 instead of standalone Neo4j *(Reason: Zero-config, portable, single .db file per blueprint)*
-- **Verification: SQLite over Neo4j**: Use SQLite + FTS5 instead of standalone Neo4j *(Reason: Zero-config, portable, single .db file per blueprint)*
-- **Verification: SQLite over Neo4j**: Use SQLite + FTS5 instead of standalone Neo4j *(Reason: Zero-config, portable, single .db file per blueprint)*
-- **Verification: SQLite over Neo4j**: Use SQLite + FTS5 instead of standalone Neo4j *(Reason: Zero-config, portable, single .db file per blueprint)*
-- **Verification: SQLite over Neo4j**: Use SQLite + FTS5 instead of standalone Neo4j *(Reason: Zero-config, portable, single .db file per blueprint)*
-- **Verification: SQLite over Neo4j**: Use SQLite + FTS5 instead of standalone Neo4j *(Reason: Zero-config, portable, single .db file per blueprint)*
-- **Verification: SQLite over Neo4j**: Use SQLite + FTS5 instead of standalone Neo4j *(Reason: Zero-config, portable, single .db file per blueprint)*
-- **Verification: SQLite over Neo4j**: Use SQLite + FTS5 instead of standalone Neo4j *(Reason: Zero-config, portable, single .db file per blueprint)*
-- **Verification: SQLite over Neo4j**: Use SQLite + FTS5 instead of standalone Neo4j *(Reason: Zero-config, portable, single .db file per blueprint)*
-- **Decision: Use SQLite + FTS5 instead of standalone Neo4j server**: Decision: Use SQLite + FTS5 instead of standalone Neo4j server *(Reason: Keeps Project Brain OS dependency-light and portable with zero external DB daemons)*
 
 ## 3. Known Bug Fixes & Actionable Remedies
 - Error: Port 3000 already in use (EADDRINUSE) -> `npx kill-port 3000`
@@ -68,11 +68,14 @@ Active themes across recent captures: note, quick, thought, use, session, probe,
 - Error: Port 3000 already in use (EADDRINUSE) -> `npx kill-port 3000`
 - Error: Port 3000 already in use (EADDRINUSE) -> `npx kill-port 3000`
 - Error: Port 3000 already in use (EADDRINUSE) -> `npx kill-port 3000`
+- Error: Port 3000 already in use (EADDRINUSE) -> `npx kill-port 3000`
+- Error: Port 3000 already in use (EADDRINUSE) -> `npx kill-port 3000`
+- Error: Port 3000 already in use (EADDRINUSE) -> `npx kill-port 3000`
 
 ## 4. Knowledge Gaps & Recommendations
-- ⚠️ Unresolved error captures piling up — 17 error captures have no logged fix — log the fix or decision that resolved them
+- ⚠️ Unresolved error captures piling up — 19 error captures have no logged fix — log the fix or decision that resolved them
 
 ## 5. Key Files
 - architecture.md, sync-probe.md, notes.md
 
-_Topics: note, quick, thought, use, session, probe, 3000, fast-memory-structurer_
+_Topics: note, 22, quick, thought, use, probe, session, fast-memory-structurer_
