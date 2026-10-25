@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureSeedDataOnce } from "@/lib/brain/seed";
-import { logDecision } from "@/lib/brain/store";
+import { logDecision, resolveProjectId } from "@/lib/brain/store";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +14,13 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    // Accepts proj_xxx id, slug, or display name (MCP resolve_project_id parity)
+    const projectId = await resolveProjectId(String(body.project_id));
+    if (!projectId) {
+      return NextResponse.json({ error: `Project '${body.project_id}' not found` }, { status: 404 });
+    }
     const decision = await logDecision({
-      projectId: body.project_id,
+      projectId,
       title: body.title,
       decision: body.decision,
       reasoning: body.reasoning,

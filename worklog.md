@@ -24,3 +24,20 @@ Stage Summary:
 - Deliverable: runnable Next.js 16 Project Brain OS workspace (port of Python engine + upgraded UI)
 - DB: Prisma + SQLite at db/custom.db; seeds automatically on first /api/health call
 - All golden paths browser-verified; no console/page errors
+
+---
+Task ID: 2
+Agent: main (Z.ai)
+Task: Full blueprint verification of Project Brain OS against uploaded plan + Python reference files
+
+Work Log:
+- Re-audited all engine modules (store.ts, router.ts, model-routing.ts, analyzer.ts, pipeline.ts, selftest.ts, seed.ts), Prisma schema, 9 API routes, and UI (4 tabs + 5 dialogs) against the blueprint & uploaded Python files
+- Wrote scripts/verify-blueprint.mjs: 31-check end-to-end suite (seed, capture routing, fix extraction, model routing, decision extraction, inbox fallback, FTS, 3-tier context, token budget, timeline, health score, MCP parity, self-test)
+- Found 1 gap: /api/context, /api/search, /api/decisions accepted only raw project ids — blueprint MCP parity requires id/slug/name resolution (resolve_project_id)
+- Fixed all 3 routes to use store.resolveProjectId(); lint clean; page renders 200
+- Re-ran suite: 31/31 PASS
+
+Stage Summary:
+- Blueprint conformance verified: schema, capture pipeline, router scoring weights, model router, decision/graph extraction, 3-tier context injection (<2,500 tokens), timeline, health score, self-test all match
+- Deviations (by design): vault paths are synthesized metadata (no disk writes in cloud workspace); vector search deferred (Python reference also uses FTS5 only); Memory Compression Daemon (Sprint 4) pending; OS-level hotkey = Alt+S in web (desktop_agent.py covers OS integration)
+- Verification suite kept at scripts/verify-blueprint.mjs for regression runs

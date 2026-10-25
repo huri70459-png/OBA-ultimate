@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureSeedDataOnce } from "@/lib/brain/seed";
-import { buildContextInjectionPayload, buildStructuredPrompt } from "@/lib/brain/store";
+import { buildContextInjectionPayload, buildStructuredPrompt, resolveProjectId } from "@/lib/brain/store";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   await ensureSeedDataOnce();
-  const projectId = req.nextUrl.searchParams.get("project_id") ?? "";
+  // Accepts proj_xxx id, slug, or display name (MCP resolve_project_id parity)
+  const identifier = req.nextUrl.searchParams.get("project_id") ?? "";
   const query = req.nextUrl.searchParams.get("q") ?? "";
   const goal = req.nextUrl.searchParams.get("goal") ?? "";
+
+  const projectId = await resolveProjectId(identifier);
+  if (!projectId) {
+    return NextResponse.json({ error: `Project '${identifier}' not found` }, { status: 404 });
+  }
 
   const payload = await buildContextInjectionPayload(projectId, query);
   if ("error" in payload) {
