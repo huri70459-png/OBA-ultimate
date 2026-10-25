@@ -89,6 +89,61 @@ export interface CaptureResult {
   projectMatch: ProjectMatch;
   modelRoute: ModelRoute;
   decisionLogged: BrainDecision | null;
+  /** Auto-run per-project memory compression (v2 wiring, port of brain_api.py /capture) */
+  memory_compression?: ProjectCompressionReport | { skipped: true };
+}
+
+// ==========================================
+// V2 UPGRADE — Hybrid LLM Bridge / Cross-Project Learning / Disk Sync
+// ==========================================
+
+/** Detected AI backend (port of llm_bridge.detect_active_backend). */
+export interface LlmBackend {
+  provider: "ollama" | "openai" | "anthropic" | "gemini" | "deterministic-offline";
+  model: string;
+  mode: "local_llm" | "cloud_llm" | "offline_fallback";
+}
+
+/** Output of the Anti-Drift Prompt Pre-Structurer (port of llm_bridge.rewrite_raw_prompt). */
+export interface PromptRewriteResult {
+  project_name: string;
+  raw_prompt: string;
+  refined_objective: string;
+  known_fixes_referenced: string[];
+  estimated_tokens: number;
+  token_budget_status: string;
+  backend_used: LlmBackend;
+  structured_prompt_markdown: string;
+}
+
+/** A reusable bug fix found in another project (port of memory_compressor.find_cross_project_solutions). */
+export interface CrossProjectSolution {
+  item_id: string;
+  source_project: string;
+  title: string;
+  summary: string;
+  suggested_fix: string;
+  captured_at: string;
+}
+
+/** Result of the Two-Way Obsidian Disk Sync (port of sync_markdown_edits_from_disk). */
+export interface DiskSyncStats {
+  files_checked: number;
+  sqlite_records_updated: number;
+  vectors_resynced: number;
+}
+
+/** Per-project compression report (port of memory_compressor.compress_project_memory). */
+export interface ProjectCompressionReport {
+  project_id: string;
+  project_name: string;
+  compressed_rolling_summary: string;
+  estimated_summary_tokens: number;
+  health: { score: number; status: string; gaps: string[] };
+  summary_file: string;
+  work_replay_file: string;
+  items_compressed: number;
+  llm_digest_used: boolean;
 }
 
 export interface ContextPayload {
@@ -108,8 +163,18 @@ export interface ContextPayload {
     visual_context?: string;
     captured_at: string;
   }[];
-  knowledge_graph_edges: GraphEdge[];
+  knowledge_graph_edges: {
+    source_node: string;
+    target_node: string;
+    relation_type: string;
+  }[];
   structured_prompt_markdown?: string;
+  // v2 Anti-Drift Prompt Pre-Structurer enrichment
+  token_estimate?: number;
+  token_budget_status?: string;
+  backend_used?: LlmBackend;
+  refined_objective?: string;
+  known_fixes_referenced?: string[];
 }
 
 export interface TimelineEntry {
@@ -126,6 +191,8 @@ export interface SelfTestCheck {
   name: string;
   status: "PASS" | "WARN" | "FAIL";
   detail: string;
+  /** Plain-English file/function pointer shown when a scenario fails (guided chaos harness). */
+  fixHint?: string;
 }
 
 export interface HealthGap {

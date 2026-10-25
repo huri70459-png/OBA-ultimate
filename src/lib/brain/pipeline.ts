@@ -40,7 +40,8 @@ export async function capture(input: {
   });
 
   // 3. Extract Structured Intelligence (Error fix, Decision, Entities, Summary)
-  const analysis = analyzeCapture({ rawContent, windowTitle, visualHint, routedModel: modelRoute.targetModel });
+  //    v2: async — optionally enriched by the HybridLLMBridge when a backend is reachable
+  const analysis = await analyzeCapture({ rawContent, windowTitle, visualHint, routedModel: modelRoute.targetModel });
 
   // 4. Save Item (SQLite + FTS index + virtual Vault md path)
   const savedItem = await saveItem({
@@ -58,6 +59,10 @@ export async function capture(input: {
       task_mode: modelRoute.taskMode,
       project_confidence: projMatch.confidence,
       routing_reasons: projMatch.reasons,
+      // v2 (llm_bridge parity): persist the full Snip->Action diagnosis
+      ...(analysis.actionMetadata.error
+        ? { error: analysis.actionMetadata.error, rootCause: analysis.actionMetadata.rootCause ?? "" }
+        : {}),
       ...(analysis.actionMetadata.fix ? { fix: analysis.actionMetadata.fix } : {}),
     },
   });

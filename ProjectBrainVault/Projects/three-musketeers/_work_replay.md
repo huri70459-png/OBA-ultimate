@@ -1,0 +1,36 @@
+# ⏪ Three Musketeers — Chronological Work Session Replay
+
+## 📅 2026-10-25 (33 captures)
+- **`19:30:01` [SCREENSHOT] Error: Missing Node dependency 'dotenv'** *(GuidedTestHarness)* — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
+- **`19:26:34` [SCREENSHOT] Error: Missing Node dependency 'dotenv'** *(GuidedTestHarness)* — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
+- **`19:26:34` [TERMINAL] SyntaxError: Unexpected end of JSON input while parsing ga** *(V2VerifySuite)* — [codex-agent] Diagnosed SyntaxError -> Suggested Fix: `Inspect stack trace for SyntaxError`
+- **`19:26:33` [SCREENSHOT] Error: Missing Node dependency 'dotenv'** *(GuidedTestHarness)* — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
+- **`19:26:33` [SESSION] Work Session 2026-10-25 · 18:24–19:26 · 22 captures** *(MemoryCompressionDaemon)* — Rolled up 22 captures (10 screenshots, 10 notes, 2 terminals) · topics: railway, worker, dotenv, error
+- **`19:26:29` [SCREENSHOT] Error: Missing Node dependency 'dotenv'** *(GuidedTestHarness)* — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
+- **`19:26:28` [NOTE] Decision: Use Render over Railway for worker hosting** *(BlueprintVerifySuite)* — [reasoning-architect] Decision: Use Render over Railway for worker hosting Alternatives: Railway, Fly.io, AWS ECS
+- **`19:26:28` [SESSION] Work Session 2026-10-25 · 18:24–19:25 · 20 captures** *(MemoryCompressionDaemon)* — Rolled up 20 captures (9 screenshots, 9 notes, 2 terminals) · topics: railway, worker, dotenv, error
+- **`19:25:04` [SCREENSHOT] Error: Missing Node dependency 'dotenv'** *(GuidedTestHarness)* — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
+- **`19:25:04` [NOTE] Decision: Use Render over Railway for worker hosting** *(BlueprintVerifySuite)* — [reasoning-architect] Decision: Use Render over Railway for worker hosting Alternatives: Railway, Fly.io, AWS ECS
+- **`19:24:59` [SCREENSHOT] Error: Missing Node dependency 'dotenv'** *(GuidedTestHarness)* — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
+- **`19:24:58` [NOTE] Decision: Use Render over Railway for worker hosting** *(BlueprintVerifySuite)* — [reasoning-architect] Decision: Use Render over Railway for worker hosting Alternatives: Railway, Fly.io, AWS ECS
+- **`19:24:58` [SCREENSHOT] Error: Missing Node dependency 'dotenv'** *(GuidedTestHarness)* — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
+- **`19:24:57` [NOTE] Decision: Use Render over Railway for worker hosting** *(BlueprintVerifySuite)* — [reasoning-architect] Decision: Use Render over Railway for worker hosting Alternatives: Railway, Fly.io, AWS ECS
+- **`19:24:57` [SESSION] Work Session 2026-10-25 · 18:24–19:23 · 14 captures** *(MemoryCompressionDaemon)* — Rolled up 14 captures (6 screenshots, 6 notes, 2 terminals) · topics: railway, worker, dotenv, error
+- **`19:23:52` [SCREENSHOT] Error: Missing Node dependency 'dotenv'** *(GuidedTestHarness)* — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
+- **`19:23:51` [NOTE] Decision: Use Render over Railway for worker hosting** *(BlueprintVerifySuite)* — [reasoning-architect] Decision: Use Render over Railway for worker hosting Alternatives: Railway, Fly.io, AWS ECS
+- **`19:23:20` [SCREENSHOT] Error: Missing Node dependency 'dotenv'** *(GuidedTestHarness)* — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
+- **`19:23:20` [SESSION] Work Session 2026-10-25 · 18:24–19:23 · 11 captures** *(MemoryCompressionDaemon)* — Rolled up 11 captures (5 notes, 4 screenshots, 2 terminals) · topics: railway, worker, dotenv, error
+- **`19:23:20` [SCREENSHOT] Error: Missing Node dependency 'dotenv'** *(GuidedTestHarness)* — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
+- **`19:23:19` [NOTE] Decision: Use Render over Railway for worker hosting** *(BlueprintVerifySuite)* — [reasoning-architect] Decision: Use Render over Railway for worker hosting Alternatives: Railway, Fly.io, AWS ECS
+- **`19:23:15` [SCREENSHOT] Error: Missing Node dependency 'dotenv'** *(GuidedTestHarness)* — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
+- **`19:23:14` [TERMINAL] SyntaxError: Unexpected end of JSON input while parsing ga** *(V2VerifySuite)* — [codex-agent] Diagnosed SyntaxError -> Suggested Fix: `Inspect stack trace for SyntaxError`
+- **`19:23:14` [SESSION] Work Session 2026-10-25 · 18:24–19:22 · 7 captures** *(MemoryCompressionDaemon)* — Rolled up 7 captures (4 notes, 2 screenshots, 1 terminal) · topics: railway, worker, decision, dotenv
+- **`19:22:23` [SCREENSHOT] Error: Missing Node dependency 'dotenv'** *(GuidedTestHarness)* — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
+- **`19:22:22` [TERMINAL] SyntaxError: Unexpected end of JSON input while parsing ga** *(V2VerifySuite)* — [codex-agent] Diagnosed SyntaxError -> Suggested Fix: `Inspect stack trace for SyntaxError`
+- **`18:59:09` [SESSION] Work Session 2026-10-25 · 18:24–18:59 · 5 captures** *(MemoryCompressionDaemon)* — Rolled up 5 captures (4 notes, 1 screenshot) · topics: railway, worker, decision, hosting
+- **`18:59:08` [NOTE] Decision: Use Render over Railway for worker hosting** *(BlueprintVerifySuite)* — [reasoning-architect] Decision: Use Render over Railway for worker hosting Alternatives: Railway, Fly.io, AWS ECS
+- **`18:58:17` [SESSION] Work Session 2026-10-25 · 18:24–18:44 · 4 captures** *(MemoryCompressionDaemon)* — Rolled up 4 captures (3 notes, 1 screenshot) · topics: railway, worker, decision, dotenv
+- **`18:44:20` [NOTE] Decision: Use Render over Railway for worker hosting** *(BlueprintVerifySuite)* — [reasoning-architect] Decision: Use Render over Railway for worker hosting Alternatives: Railway, Fly.io, AWS ECS
+- **`18:43:41` [NOTE] Decision: Use Render over Railway for worker hosting** *(BlueprintVerifySuite)* — [reasoning-architect] Decision: Use Render over Railway for worker hosting Alternatives: Railway, Fly.io, AWS ECS
+- **`18:25:38` [NOTE] Error: Missing dependency 'dotenv'** *(Workspace UI)* — [codex-agent] Diagnosed ModuleNotFound -> Fix: `pnpm add dotenv`
+- **`18:24:28` [SCREENSHOT] Error: Missing dependency 'dotenv'** *(Windows Terminal)* — [codex-agent] Diagnosed ModuleNotFound -> Fix: `pnpm add dotenv`

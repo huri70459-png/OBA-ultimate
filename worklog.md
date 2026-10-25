@@ -60,3 +60,25 @@ Stage Summary:
 - Both deferred blueprint items now implemented: Engine 3 (Memory Compression Daemon) + Sprint-3 vector semantic search
 - Idle daemon auto-fired during health checks (verified in daemon lastReport: trigger=self-test/auto, sessions across 3 projects)
 - Deviations: hash-embeddings are deterministic/offline (not neural) — swap point is embedText() if a hosted embedder is added later; vectors stored in SQLite per sqlite-vec pattern (no LanceDB dependency)
+
+---
+Task ID: 4
+Agent: main (Z.ai)
+Task: Integrate user's v2 upgrade (Option 1 Hybrid LLM Bridge & Memory Compression Engine + Option 2 8-Scenario Chaos Harness) into the Next.js Brain OS
+
+Work Log:
+- Ported llm_bridge.py -> src/lib/brain/llm-bridge.ts: HybridLLMBridge with detectActiveBackend() (Ollama probe w/ 30s memo -> OPENAI/ANTHROPIC/GEMINI env keys -> deterministic-offline), completeText() (Ollama + OpenAI, graceful "" fallback), rewriteRawPrompt() (5-Section Engineering Spec: Clarified Objective / TIER 1 State / TIER 2 MUST RESPECT guardrails / TIER 3 Evidence+Known Fixes / Strict Output & Verification Contract, ~4 chars/token estimator, OPTIMAL/WARNING budget status)
+- Upgraded analyzer.ts (analyzeCaptureCallback parity): EADDRINUSE -> `npx kill-port <port>`, runtime exceptions (SyntaxError/TypeError/ReferenceError/KeyError/ValueError) -> metadata {error, rootCause}, decision triggers + "we decided to"/"switched from", extensions +sql/html, optional live-LLM 1-sentence summary when backend reachable; analyzeCapture now async, pipeline awaits
+- Vault upgraded from synthetic paths to REAL disk writes at <cwd>/ProjectBrainVault (sqlite_store.py layout): saveItem writes Obsidian-compatible .md (YAML frontmatter + "## Content" marker), upsertProject maintains _project_summary.md; store.syncMarkdownEditsFromDisk() scans tracked files, syncs disk edits back into SQLite + re-embeds vector sidecar (semantic search stays in sync)
+- compressor.ts: added compressProjectMemory(projectId) (per-project <450-token Tier-1 re-synthesis w/ Resolved Fixes + Key Files sections, optional LLM digest pass, writes _project_summary.md + _work_replay.md with per-date capture grouping), findCrossProjectSolutions() (Cross-Project Bug Reuse), unified synthesis shared with daemon cycle; fixed metadata-parsing bug in updateProjectSummaries (now via toItem)
+- API v2 wiring (brain_api.py parity): /api/health reports engine v2 + llm_backend; /api/capture + /api/decisions auto-compress matched project (memory_compression in response); /api/context compresses on-the-fly then returns token_estimate/token_budget_status/backend_used/refined_objective/known_fixes_referenced + 5-section spec; /api/projects/[id] runs disk sync before details; NEW POST /api/compress (id/slug/name resolution), POST /api/sync-disk, GET /api/cross-project
+- selftest.ts upgraded 6 checks -> 8 Guided & Chaos scenarios w/ plain-English fix hints: vault init + summary file, snip-to-action fix, chaos multi-project (path beats momentum) + decision, disk-edit->sync, compression<450+replay, prompt rewriter<2500 grounded in decisions, cross-project reuse, MCP resolve-by-name/slug + malformed-call resilience
+- UI: header AI-backend badge (Offline Synthesizer/Ollama/cloud); ContextView shows budget badge + backend chip + clarified objective + known fixes; SearchDialog gains "Cross-Project Fixes" mode (source-project badge + reusable fix chip, excludes selected project); SelfTestDialog describes 8 scenarios w/ ALL 8/8 scorecard line
+- Slimmed /api/context transport payload (6 decisions w/ capped reasoning, 140-char evidence, 5 slim graph edges) to keep whole-JSON under the 2,500-token budget; MAX_SUMMARY_CHARS 1300
+- Verification: scripts/verify-v2.mjs 20/20 PASS (health v2+backend, EADDRINUSE+SyntaxError detections, real vault file, auto-compression, <450 budget, both .md files on disk, disk-edit sync w/ 49 files checked, cross-project reuse, spec structure+budget, 8/8 self-test, decision auto-compress); regression verify-blueprint.mjs 31/31 PASS; verify-upgrade.mjs 21/21 PASS (updated self-test expectations); lint clean
+- Browser-verified via agent-browser: boot, header badge "OFFLINE SYNTHESIZER", Context Injector spec w/ OPTIMAL badge + clarified objective, Cross-Project search (THREE MUSKETEERS -> "Reusable fix: pnpm add dotenv"), Self-Test ALL 8/8 SCENARIOS PASSED, Compress Memory refresh, mobile 390px render; no console/page errors
+
+Stage Summary:
+- All four v2 capabilities live: Hybrid LLM Bridge (auto-detect w/ offline fallback), Anti-Drift Prompt Pre-Structurer, Two-Way Obsidian Disk Sync (real vault at ProjectBrainVault/), Cross-Project Learning, 8-Scenario Guided & Chaos Harness (UI + /api/self-test)
+- Deviations: anthropic/gemini keys detected but completion falls back to offline synthesis (llm_bridge.py v2 parity); vault lives in sandbox workspace disk (user-side Obsidian sync needs the desktop agent pointing at their own vault path)
+- Combined regression board: 31/31 blueprint + 21/21 upgrade + 20/20 v2 = 72 checks green

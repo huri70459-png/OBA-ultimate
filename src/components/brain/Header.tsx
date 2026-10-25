@@ -3,7 +3,7 @@
 // Top command bar — brand, universal search, Zero-Save Capture, Memory Compressor, Self-Test
 
 import { useState } from "react";
-import { Search, Zap, Stethoscope, DatabaseZap } from "lucide-react";
+import { Search, Zap, Stethoscope, DatabaseZap, Cpu } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "./workspace-store";
 
@@ -12,8 +12,17 @@ export function Header() {
   const openSearch = useWorkspace((s) => s.openSearch);
   const compressMemory = useWorkspace((s) => s.compressMemory);
   const compressing = useWorkspace((s) => s.compressing);
+  const llmBackend = useWorkspace((s) => s.llmBackend);
   const { toast } = useToast();
   const [query, setQuery] = useState("");
+
+  const backendLabel = llmBackend
+    ? llmBackend.provider === "deterministic-offline"
+      ? "Offline Synthesizer"
+      : llmBackend.provider === "ollama"
+        ? `Ollama · ${llmBackend.model}`
+        : llmBackend.model
+    : "…";
 
   const submit = () => {
     if (query.trim()) openSearch(query.trim());
@@ -45,6 +54,13 @@ export function Header() {
             </span>
             <span className="hidden shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-emerald-400 sm:inline">
               SQLite · Local-First
+            </span>
+            <span
+              className="hidden shrink-0 rounded-full border border-violet-500/20 bg-violet-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-violet-300 lg:inline"
+              title={`AI backend: ${llmBackend?.provider ?? "…"} (${llmBackend?.mode ?? "…"}) — auto-detected by the Hybrid LLM Bridge`}
+            >
+              <Cpu className="mr-1 inline h-3 w-3" aria-hidden />
+              {backendLabel}
             </span>
           </div>
           <p className="hidden truncate text-[11px] text-slate-400 lg:block">

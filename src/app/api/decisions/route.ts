@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureSeedDataOnce } from "@/lib/brain/seed";
 import { logDecision, resolveProjectId } from "@/lib/brain/store";
+import { compressProjectMemory } from "@/lib/brain/compressor";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,9 @@ export async function POST(req: NextRequest) {
       alternatives: Array.isArray(body.alternatives) ? body.alternatives.map(String) : [],
       outcome: body.outcome ?? "Active",
     });
-    return NextResponse.json(decision);
+    // v2 wiring (brain_api.py parity): re-compress Tier-1 memory after every decision
+    const compression = await compressProjectMemory(projectId);
+    return NextResponse.json({ ...decision, memory_compression: compression });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Failed to log decision" },

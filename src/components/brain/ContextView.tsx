@@ -33,7 +33,7 @@ export function ContextView() {
       setPayload(data as ContextPayload);
       toast({
         title: "3-Tier Context synthesized",
-        description: `≈${Math.round((data.structured_prompt_markdown?.length ?? 0) / 4)} tokens · ready to paste into any LLM`,
+        description: `${data.token_budget_status ?? "spec ready"} · backend: ${data.backend_used?.provider ?? "unknown"} · ready to paste into any LLM`,
       });
     } catch (e) {
       toast({
@@ -65,8 +65,9 @@ export function ContextView() {
             <Rocket className="h-4 w-4 text-indigo-400" /> Context Injector &amp; Prompt Structurer
           </h2>
           <p className="mt-0.5 text-xs text-slate-400">
-            Combines Rolling Memory (Tier 1) + Active Decisions (Tier 2) + Vault Evidence (Tier 3)
-            into a compact, hallucination-proof prompt under ~2,500 tokens.
+            Rewrites any raw, unclear thought into a strict 5-Section Engineering Spec anchored to
+            Rolling Memory (Tier 1) + Active Decisions (Tier 2) + Vault Evidence (Tier 3) — under a
+            2,500-token budget, with zero context drift.
           </p>
         </div>
 
@@ -168,12 +169,23 @@ export function ContextView() {
             {/* Structured prompt output */}
             <div className="rounded-xl border border-slate-800 bg-slate-950/70">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 p-3">
-                <span className="text-xs font-semibold text-slate-300">
-                  Structured Prompt (anti-drift) ·{" "}
-                  <span className="text-slate-500">
-                    ≈{Math.round((payload.structured_prompt_markdown?.length ?? 0) / 4)} tokens
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-300">Structured Execution Spec (anti-drift)</span>
+                  <span
+                    className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                      (payload.token_budget_status ?? "").startsWith("OPTIMAL")
+                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                        : "border-amber-500/30 bg-amber-500/10 text-amber-400"
+                    }`}
+                  >
+                    {payload.token_budget_status ?? `≈${Math.round((payload.structured_prompt_markdown?.length ?? 0) / 4)} tokens`}
                   </span>
-                </span>
+                  {payload.backend_used && (
+                    <span className="rounded-full border border-violet-500/20 bg-violet-500/10 px-2 py-0.5 text-[10px] text-violet-300">
+                      backend: {payload.backend_used.provider}
+                    </span>
+                  )}
+                </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => copy(payload.structured_prompt_markdown ?? "", "Structured prompt")}
@@ -189,6 +201,22 @@ export function ContextView() {
                   </button>
                 </div>
               </div>
+              {(payload.refined_objective || (payload.known_fixes_referenced?.length ?? 0) > 0) && (
+                <div className="space-y-1.5 border-b border-slate-800 bg-slate-900/40 p-3">
+                  {payload.refined_objective && (
+                    <p className="whitespace-pre-wrap text-[11px] leading-relaxed text-slate-300">
+                      <span className="font-semibold text-emerald-400">Clarified objective:</span>{" "}
+                      {payload.refined_objective}
+                    </p>
+                  )}
+                  {(payload.known_fixes_referenced?.length ?? 0) > 0 && (
+                    <p className="text-[11px] text-slate-400">
+                      <span className="font-semibold text-amber-400">Known fixes referenced:</span>{" "}
+                      {payload.known_fixes_referenced!.join(" · ")}
+                    </p>
+                  )}
+                </div>
+              )}
               <pre className="brain-scroll max-h-96 overflow-auto whitespace-pre-wrap p-4 font-mono text-[11px] leading-relaxed text-slate-300">
                 {payload.structured_prompt_markdown}
               </pre>

@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import type { BrainItem, CaptureResult, SelfTestCheck } from "@/lib/brain/types";
+import type { BrainItem, CaptureResult, CrossProjectSolution, SelfTestCheck } from "@/lib/brain/types";
 import { useWorkspace } from "./workspace-store";
 import { itemTypeStyle, shortTime } from "./ui-shared";
 
@@ -292,45 +292,64 @@ export function DecisionDialog() {
 }
 
 // ==========================================
-// UNIVERSAL SEARCH RESULTS
+// UNIVERSAL SEARCH RESULTS (+ v2 Cross-Project Bug Reuse)
 // ==========================================
 export function SearchDialog() {
   const open = useWorkspace((s) => s.searchOpen);
   const close = useWorkspace((s) => s.closeDialog);
   const seed = useWorkspace((s) => s.searchSeed);
+  const details = useWorkspace((s) => s.details);
   const { toast } = useToast();
 
   const [query, setQuery] = useState(seed);
   const [results, setResults] = useState<BrainItem[]>([]);
+  const [solutions, setSolutions] = useState<CrossProjectSolution[]>([]);
+  const [mode, setMode] = useState<"vault" | "cross">("vault");
   const [loading, setLoading] = useState(false);
   const [ran, setRan] = useState(false);
 
-  const run = useCallback(async (q: string) => {
-    if (!q.trim()) return;
-    setLoading(true);
-    setRan(true);
-    try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`, { cache: "no-store" });
-      const data = await res.json();
-      setResults(data.results ?? []);
-    } catch {
-      setResults([]);
-      toast({ title: "Search failed", variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
+  const run = useCallback(
+    async (q: string, m: "vault" | "cross" = "vault") => {
+      if (!q.trim()) return;
+      setLoading(true);
+      setRan(true);
+      try {
+        if (m === "cross") {
+          // v2: search OTHER projects for a fix that already solved this bug
+          const params = new URLSearchParams({ q });
+          if (details?.project.id) params.set("exclude_project_id", details.project.id);
+          const res = await fetch(`/api/cross-project?${params.toString()}`, { cache: "no-store" });
+          const data = await res.json();
+          setSolutions(data.solutions ?? []);
+          setResults([]);
+        } else {
+          const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`, { cache: "no-store" });
+          const data = await res.json();
+          setResults(data.results ?? []);
+          setSolutions([]);
+        }
+      } catch {
+        setResults([]);
+        setSolutions([]);
+        toast({ title: "Search failed", variant: "destructive" });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [toast, details]
+  );
 
   useEffect(() => {
     if (open && seed) {
       setQuery(seed);
-      void run(seed);
+      void run(seed, mode);
     }
     if (!open) {
       setRan(false);
       setResults([]);
+      setSolutions([]);
     }
-  }, [open, seed]);
+  }, [open, seed, mode, run]);
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close("searchOpen")}>
@@ -340,24 +359,59 @@ export function SearchDialog() {
             <Search className="h-4 w-4 text-indigo-400" /> Universal Vault Search
           </DialogTitle>
           <DialogDescription className="text-slate-400">
-            Full-text search across titles, content, AI summaries, and visual descriptions of every
-            capture.
+            Full-text + semantic search across every capture — or switch to
+            <span className="text-emerald-300"> Cross-Project</span> to find fixes already solved in
+            your other projects.
           </DialogDescription>
         </DialogHeader>
+
+        <div className="flex items-center gap-1.5" role="tablist" aria-label="Search mode">
+          <button
+            role="tab"
+            aria-selected={mode === "vault"}
+            onClick={() => {
+              setMode("vault");
+              if (ran && query.trim()) void run(query, "vault");
+            }}
+            className={`rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+              mode === "vault"
+                ? "border-indigo-500 bg-indigo-500/15 text-indigo-300"
+                : "border-slate-800 text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            This vault
+          </button>
+          <button
+            role="tab"
+            aria-selected={mode === "cross"}
+            onClick={() => {
+              setMode("cross");
+              if (ran && query.trim()) void run(query, "cross");
+            }}
+            className={`rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+              mode === "cross"
+                ? "border-emerald-500 bg-emerald-500/15 text-emerald-300"
+                : "border-slate-800 text-slate-400 hover:text-slate-200"
+            }`}
+            title="Cross-Project Learning: find the fix that already worked in another project"
+          >
+            Cross-Project Fixes
+          </button>
+        </div>
 
         <div className="flex gap-2">
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && run(query)}
+            onKeyDown={(e) => e.key === "Enter" && run(query, mode)}
             placeholder="Search the entire brain…"
             className="flex-1 rounded-lg border border-slate-800 bg-slate-950/80 px-3 py-2 text-xs text-slate-200 placeholder-slate-600 focus:border-indigo-500 focus:outline-none"
             aria-label="Search query"
             autoFocus
           />
           <button
-            onClick={() => run(query)}
+            onClick={() => run(query, mode)}
             className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-indigo-500"
           >
             Search
@@ -367,10 +421,34 @@ export function SearchDialog() {
         <ScrollArea className="max-h-[50vh] pr-2">
           <div className="space-y-2">
             {loading && <p className="p-4 text-center text-xs text-slate-500">Searching…</p>}
-            {!loading && ran && results.length === 0 && (
+            {!loading && ran && mode === "vault" && results.length === 0 && (
               <p className="p-4 text-center text-xs text-slate-500">No matches in the vault.</p>
             )}
-            {results.map((r) => {
+            {!loading && ran && mode === "cross" && solutions.length === 0 && (
+              <p className="p-4 text-center text-xs text-slate-500">
+                No reusable fixes found in your other projects — you are breaking new ground here.
+              </p>
+            )}
+            {mode === "cross" &&
+              solutions.map((s) => (
+                <div key={s.item_id} className="rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-emerald-300">
+                      {s.source_project}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-100">{s.title}</span>
+                    <span className="ml-auto text-[10px] text-slate-500">{shortTime(s.captured_at)}</span>
+                  </div>
+                  {s.summary && <p className="mt-1 text-[11px] leading-relaxed text-slate-400">{s.summary}</p>}
+                  {s.suggested_fix && (
+                    <p className="mt-1.5 font-mono text-[11px] text-emerald-300">
+                      Reusable fix: <span className="rounded bg-slate-950/80 px-1.5 py-0.5">{s.suggested_fix}</span>
+                    </p>
+                  )}
+                </div>
+              ))}
+            {mode === "vault" &&
+              results.map((r) => {
               const style = itemTypeStyle(r.itemType);
               const Icon = style.icon;
               return (
@@ -445,9 +523,12 @@ export function SelfTestDialog() {
     <Dialog open={open} onOpenChange={(o) => !o && close("selfTestOpen")}>
       <DialogContent className="border-slate-800 bg-[#0d1220] text-slate-200 sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-white">🩺 End-to-End Self-Test</DialogTitle>
+          <DialogTitle className="text-white">🩺 Guided Scenario &amp; Chaos Test</DialogTitle>
           <DialogDescription className="text-slate-400">
-            Runs a live capture, verifies fix extraction, search, and 3-tier context injection.
+            Runs 8 real-world scenarios against the live engine: vault init, zero-save capture,
+            ambiguous multi-project chaos, two-way disk sync, memory compression &amp; work replay,
+            anti-drift prompt budget, cross-project reuse, and MCP resilience — with plain-English
+            fix pointers if anything ever breaks.
           </DialogDescription>
         </DialogHeader>
 
@@ -464,7 +545,9 @@ export function SelfTestDialog() {
           ))}
           {checks && (
             <p className={`pt-1 text-center text-xs font-semibold ${ok ? "text-emerald-400" : "text-amber-400"}`}>
-              {ok ? "All systems operational — Brain is ready." : "Some checks need attention."}
+              {ok
+                ? `🎉 ALL ${checks.length}/${checks.length} SCENARIOS PASSED! Your Project Brain OS is 100% verified.`
+                : "Some scenarios need attention — check the fix hints above."}
             </p>
           )}
         </div>

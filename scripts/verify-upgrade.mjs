@@ -106,13 +106,13 @@ async function jfetch(path, opts) {
   const sessHit = (sessSearch.data.results || []).find(r => r.itemType === "session");
   check("Session rollups are semantically searchable", Boolean(sessHit) && (sessHit.similarity ?? 0) > 0, sessHit ? `"${sessHit.title}" sim=${sessHit.similarity?.toFixed?.(3)}` : "no session hit");
 
-  // ---- J. Self-test (6 checks incl. 2 new) ----
+  // ---- J. Self-test (8 guided scenarios) ----
   const st = await jfetch("/api/self-test");
   const checks = st.data.checks || [];
   const names = checks.map(c => c.name);
-  check("Self-test now has 6 checks", checks.length === 6, names.join(" | "));
-  check("Vector Semantic Search self-check PASS", checks.find(c => c.name.includes("Vector Semantic Search"))?.status === "PASS", checks.find(c => c.name.includes("Vector Semantic Search"))?.detail);
-  check("Memory Compression Daemon self-check PASS", checks.find(c => c.name.includes("Memory Compression Daemon"))?.status === "PASS", checks.find(c => c.name.includes("Memory Compression Daemon"))?.detail);
+  check("Self-test runs 8 guided scenarios", checks.length === 8, names.join(" | "));
+  check("Memory Compression scenario PASS", Boolean(checks.find(c => c.name.includes("5. Memory Compression"))?.status === "PASS"), checks.find(c => c.name.includes("5. Memory Compression"))?.detail);
+  check("Disk-sync scenario PASS", Boolean(checks.find(c => c.name.includes("4. Two-Way Obsidian"))?.status === "PASS"), checks.find(c => c.name.includes("4. Two-Way Obsidian"))?.detail);
   check("Full self-test suite all PASS", st.data.ok && checks.every(c => c.status === "PASS"), checks.map(c => `${c.name}: ${c.status}`).join(" | "));
 
   // ---- Context payload budget regression ----

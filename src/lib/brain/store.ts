@@ -1,7 +1,10 @@
 // Project Brain OS — Store Layer (port of sqlite_store.py)
-// SQLite via Prisma + BM25-like token search + vector (semantic) hybrid search + vault metadata
+// SQLite via Prisma + BM25-like token search + vector (semantic) hybrid search
+// + REAL on-disk Obsidian-style vault (v2: two-way markdown disk sync)
 
 import { randomUUID } from "crypto";
+import { mkdir, readFile, writeFile } from "fs/promises";
+import path from "path";
 import { db } from "@/lib/db";
 import {
   cosineSimilarity,
@@ -15,6 +18,7 @@ import type {
   BrainItem,
   BrainProject,
   ContextPayload,
+  DiskSyncStats,
   GraphEdge,
   ProjectDetails,
   TimelineEntry,
@@ -48,6 +52,82 @@ type DecisionRow = {
   sourceItemId: string | null;
   decidedAt: Date;
 };
+
+// ==========================================
+// REAL DISK VAULT (v2 Two-Way Obsidian Sync)
+// Files live at <cwd>/ProjectBrainVault — the same layout as sqlite_store.py.
+// Every write is best-effort: a disk failure never breaks capture/search.
+// ==========================================
+
+export function vaultRoot(): string {
+  return path.join(process.cwd(), "ProjectBrainVault");
+}
+
+/** Resolves a stored relative filePath ("ProjectBrainVault/...") to an absolute disk path. */
+export function resolveVaultPath(filePath: string): string {
+  return path.isAbsolute(filePath) ? filePath : path.join(process.cwd(), filePath);
+}
+
+function frontmatterBlock(input: {
+  id: string;
+  type: string;
+  projectName: string;
+  sourceApp: string;
+  sourceUrl: string;
+  capturedAt: string;
+}): string {
+  return (
+    `---\n` +
+    `id: ${input.id}\n` +
+    `type: ${input.type}\n` +
+    `project: ${input.projectName}\n` +
+    `source_app: ${input.sourceApp}\n` +
+    `source_url: ${input.sourceUrl}\n` +
+    `captured_at: ${input.capturedAt}\n` +
+    `---\n\n`
+  );
+}
+
+/** Builds the Obsidian-compatible .md body (YAML frontmatter + "## Content" marker). */
+export function buildItemMarkdown(input: {
+  id: string;
+  itemType: string;
+  projectName: string;
+  sourceApp: string;
+  sourceUrl: string;
+  capturedAt: string;
+  title: string;
+  structuredSummary?: string;
+  visualDescription?: string;
+  suggestedFix?: string;
+  rawContent: string;
+}): string {
+  let body = `# ${input.title}\n\n`;
+  if (input.structuredSummary) body += `> **AI Summary:** ${input.structuredSummary}\n\n`;
+  if (input.visualDescription) body += `> **Visual Context:** ${input.visualDescription}\n\n`;
+  if (input.suggestedFix) body += `### Suggested Fix\n\`\`\`bash\n${input.suggestedFix}\n\`\`\`\n\n`;
+  body += `## Content\n${input.rawContent}\n`;
+  return frontmatterBlock({
+    id: input.id,
+    type: input.itemType,
+    projectName: input.projectName,
+    sourceApp: input.sourceApp,
+    sourceUrl: input.sourceUrl,
+    capturedAt: input.capturedAt,
+  }) + body;
+}
+
+/** Writes a file inside the vault (creates parent dirs); returns the relative path on success. */
+export async function writeVaultFile(relativePath: string, content: string): Promise<string | null> {
+  try {
+    const abs = resolveVaultPath(relativePath);
+    await mkdir(path.dirname(abs), { recursive: true });
+    await writeFile(abs, content, "utf-8");
+    return relativePath;
+  } catch {
+    return null; // never let disk failures break the engine
+  }
+}
 
 export function slugify(text: string): string {
   const slug = text
@@ -168,6 +248,29 @@ export async function upsertProject(input: {
     project = toProject(created);
   }
 
+  // v2: maintain the human-readable _project_summary.md on disk (sqlite_store.py parity:
+  // writes when a summary exists or the file is missing)
+  const effectiveSummary = project.rollingSummary;
+  const summaryRelPath = `ProjectBrainVault/Projects/${project.slug}/_project_summary.md`;
+  const summaryAbs = resolveVaultPath(summaryRelPath);
+  let summaryExists = true;
+  try {
+    await readFile(summaryAbs, "utf-8");
+  } catch {
+    summaryExists = false;
+  }
+  if (effectiveSummary || !summaryExists) {
+    const now = new Date().toISOString();
+    await writeVaultFile(
+      summaryRelPath,
+      `# ${project.name} — Project Brain Summary\n\n` +
+        `**Root Path:** \`${project.rootPath}\`\n` +
+        `**Keywords:** ${project.keywords.join(", ")}\n` +
+        `**Last Updated:** ${now}\n\n` +
+        `## Rolling Memory\n${effectiveSummary || "No summary compressed yet."}\n`
+    );
+  }
+
   return project;
 }
 
@@ -196,7 +299,7 @@ export async function resolveProjectId(identifier: string): Promise<string | nul
 }
 
 // ==========================================
-// ZERO-SAVE ITEM CAPTURE (Vault metadata = virtual md file path)
+// ZERO-SAVE ITEM CAPTURE (real Vault .md file on disk, Obsidian-compatible)
 // ==========================================
 
 function vaultFilePath(project: BrainProject | null, itemType: string, title: string, now: Date): string {
@@ -266,7 +369,89 @@ export async function saveItem(input: {
     await db.project.update({ where: { id: project.id }, data: { updatedAt: now } });
   }
 
+  // v2: write the real Obsidian-compatible .md file to disk (best-effort, sqlite_store parity)
+  await writeVaultFile(
+    created.filePath,
+    buildItemMarkdown({
+      id: created.id,
+      itemType: created.itemType,
+      projectName: project?.name ?? "Inbox",
+      sourceApp: created.sourceApp,
+      sourceUrl: created.sourceUrl,
+      capturedAt: created.capturedAt.toISOString(),
+      title: created.title,
+      structuredSummary: created.structuredSummary,
+      visualDescription: created.visualDescription,
+      suggestedFix: typeof metadata.fix === "string" ? metadata.fix : undefined,
+      rawContent: created.rawContent,
+    })
+  );
+
   return toItem(created);
+}
+
+// ==========================================
+// TWO-WAY OBSIDIAN DISK SYNC (v2, port of memory_compressor.sync_markdown_edits_from_disk)
+// If the user edited a tracked .md file directly on disk (Obsidian / VS Code),
+// sync the new content back into SQLite and re-embed the semantic vector.
+// ==========================================
+
+export async function syncMarkdownEditsFromDisk(): Promise<DiskSyncStats> {
+  const stats: DiskSyncStats = { files_checked: 0, sqlite_records_updated: 0, vectors_resynced: 0 };
+
+  const rows = await db.item.findMany({
+    where: { filePath: { not: "" } },
+    select: {
+      id: true,
+      title: true,
+      rawContent: true,
+      filePath: true,
+      structuredSummary: true,
+      visualDescription: true,
+      projectId: true,
+    },
+    take: 2000,
+    orderBy: { capturedAt: "desc" },
+  });
+
+  for (const r of rows) {
+    stats.files_checked += 1;
+    let diskText: string;
+    try {
+      diskText = await readFile(resolveVaultPath(r.filePath), "utf-8");
+    } catch {
+      continue; // file missing/unreadable — skip silently
+    }
+
+    // The editable payload lives after the "## Content\n" marker
+    const marker = "## Content\n";
+    let newRaw: string;
+    if (diskText.includes(marker)) {
+      newRaw = diskText.split(marker, 2)[1].trim();
+    } else {
+      newRaw = diskText.trim();
+    }
+
+    if (newRaw && newRaw !== r.rawContent.trim()) {
+      await db.item.update({ where: { id: r.id }, data: { rawContent: newRaw } });
+      stats.sqlite_records_updated += 1;
+
+      // Re-embed so FTS-equivalent fields AND semantic search stay in sync
+      await db.itemVector.upsert({
+        where: { itemId: r.id },
+        update: { ...embedForStorage(`${r.title}\n${newRaw}\n${r.structuredSummary}\n${r.visualDescription}`), indexedAt: new Date() },
+        create: {
+          id: newVectorId(),
+          itemId: r.id,
+          projectId: r.projectId,
+          ...embedForStorage(`${r.title}\n${newRaw}\n${r.structuredSummary}\n${r.visualDescription}`),
+        },
+      });
+      stats.vectors_resynced += 1;
+    }
+  }
+
+  return stats;
 }
 
 // ==========================================
@@ -683,15 +868,15 @@ export async function buildContextInjectionPayload(
   if (!project) return { error: `Project ${projectId} not found` };
 
   const [decisionRows, recentRows, edges] = await Promise.all([
-    db.decision.findMany({ where: { projectId }, orderBy: { decidedAt: "desc" }, take: 8 }),
+    db.decision.findMany({ where: { projectId }, orderBy: { decidedAt: "desc" }, take: 6 }),
     db.item.findMany({ where: { projectId }, orderBy: { capturedAt: "desc" }, take: 6 }),
-    getProjectGraph(projectId, 15),
+    getProjectGraph(projectId, 5),
   ]);
 
   const tier2 = decisionRows.map(toDecision).map((d) => ({
     title: d.title,
-    decision: d.decision,
-    reasoning: d.reasoning,
+    decision: d.decision.length > 80 ? `${d.decision.slice(0, 80)}…` : d.decision,
+    reasoning: d.reasoning.length > 60 ? `${d.reasoning.slice(0, 60)}…` : d.reasoning,
     outcome: d.outcome,
     decidedAt: d.decidedAt,
   }));
@@ -700,10 +885,10 @@ export async function buildContextInjectionPayload(
   if (activeQuery) {
     const hits = await searchVault(activeQuery, projectId, 5);
     tier3 = hits.map((h) => ({
-      title: h.title,
+      title: h.title.slice(0, 70),
       type: h.itemType,
-      summary: h.structuredSummary || h.rawContent.slice(0, 300),
-      visual_context: h.visualDescription,
+      summary: (h.structuredSummary || h.rawContent).slice(0, 140),
+      visual_context: h.visualDescription ? h.visualDescription.slice(0, 100) : undefined,
       captured_at: h.capturedAt,
     }));
   }
@@ -714,7 +899,7 @@ export async function buildContextInjectionPayload(
       return {
         title: item.title,
         type: item.itemType,
-        summary: item.structuredSummary,
+        summary: item.structuredSummary.slice(0, 180),
         captured_at: item.capturedAt,
       };
     });
@@ -725,7 +910,13 @@ export async function buildContextInjectionPayload(
     tier_1_rolling_memory: project.rollingSummary || "Active development project.",
     tier_2_decision_graph: tier2,
     tier_3_recent_and_relevant_evidence: tier3,
-    knowledge_graph_edges: edges,
+    // Slim edge projection keeps the JSON transport payload compact — the graph
+    // itself (full edges) is served by /api/projects/[id] for the Graph view.
+    knowledge_graph_edges: edges.map((e) => ({
+      source_node: e.sourceNode,
+      target_node: e.targetNode,
+      relation_type: e.relationType,
+    })),
   };
 }
 

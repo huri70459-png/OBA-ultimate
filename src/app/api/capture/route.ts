@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureSeedDataOnce } from "@/lib/brain/seed";
 import { capture } from "@/lib/brain/pipeline";
+import { compressProjectMemory } from "@/lib/brain/compressor";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,14 @@ export async function POST(req: NextRequest) {
       assetPath: body.asset_path ?? body.assetPath ?? "",
       visualHint: body.visual_hint ?? body.visualHint ?? "",
     });
-    return NextResponse.json(result);
+    // v2 wiring (brain_api.py parity): automatically re-compress project memory
+    // whenever a new capture lands so Tier-1 rolling memory is always fresh.
+    const matchedPid = result.projectMatch?.projectId;
+    if (matchedPid) {
+      const compression = await compressProjectMemory(matchedPid);
+      return NextResponse.json({ ...result, memory_compression: compression });
+    }
+    return NextResponse.json({ ...result, memory_compression: { skipped: true } });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Capture failed" },

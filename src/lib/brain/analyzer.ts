@@ -1,14 +1,23 @@
-// Project Brain OS — Built-in Deterministic Intelligence Analyzer
-// Port of capture_pipeline.py::_builtin_intelligent_analyzer (works fully offline, zero API keys)
+// Project Brain OS — Built-in Deterministic Intelligence Analyzer (v2)
+// Port of llm_bridge.py::analyze_capture_callback (upgraded Snip -> Action analyzer):
+//   - Node  "Cannot find module 'x'"        -> pnpm add x
+//   - Python "ModuleNotFoundError: x"       -> pip install x
+//   - Locked port "EADDRINUSE ...:3000"     -> npx kill-port 3000        (v2 NEW)
+//   - Runtime exceptions (SyntaxError, TypeError, ReferenceError, KeyError, ValueError) (v2 NEW)
+//   - File & component mentions -> MENTIONED_IN Knowledge Graph edges
+//   - Architectural decision extraction (Decision:/why we chose/we decided to/switched from)
+//   - Optional live LLM 1-sentence summary enrichment when a backend is reachable (v2 NEW)
+// Works fully offline with zero API keys via the deterministic fallback path.
 
+import { llmBridge } from "./llm-bridge";
 import type { AnalysisResult } from "./types";
 
-export function analyzeCapture(input: {
+export async function analyzeCapture(input: {
   rawContent: string;
   windowTitle?: string;
   visualHint?: string;
   routedModel: string;
-}): AnalysisResult {
+}): Promise<AnalysisResult> {
   const { rawContent, windowTitle = "", visualHint = "", routedModel } = input;
 
   const lines = rawContent
@@ -22,23 +31,50 @@ export function analyzeCapture(input: {
   const graphEdges: AnalysisResult["graphEdges"] = [];
   let decisionData: AnalysisResult["decision"] = null;
 
-  // Detect missing module / package errors (Snip -> Action)
-  const modMatch = rawContent.match(
-    /Cannot find module ['"]([^'"]+)['"]|ModuleNotFoundError: No module named ['"]([^'"]+)['"]/
+  // A. Snip -> Action: extract missing dependencies / terminal errors + fix commands
+  const nodeMod = rawContent.match(/Cannot find module ['"]([^'"]+)['"]/);
+  const pyMod = rawContent.match(/ModuleNotFoundError: No module named ['"]([^'"]+)['"]/);
+  const portErr = rawContent.match(/EADDRINUSE.*?:(\d+)/);
+  const syntaxErr = rawContent.match(
+    /(SyntaxError|TypeError|ReferenceError|KeyError|ValueError):\s*([^\n]+)/
   );
-  if (modMatch) {
-    const missingPkg = modMatch[1] || modMatch[2];
-    const installer = modMatch[1] ? `pnpm add ${missingPkg}` : `pip install ${missingPkg}`;
-    title = `Error: Missing dependency '${missingPkg}'`;
+
+  if (nodeMod) {
+    const pkg = nodeMod[1];
+    const fixCmd = `pnpm add ${pkg}`;
+    title = `Error: Missing Node dependency '${pkg}'`;
     actionMetadata.error = "ModuleNotFound";
-    actionMetadata.rootCause = `Missing package '${missingPkg}'`;
-    actionMetadata.fix = installer;
-    graphEdges.push({ source: title, target: installer, relation: "FIXED_BY" });
+    actionMetadata.rootCause = `Missing npm/pnpm package '${pkg}'`;
+    actionMetadata.fix = fixCmd;
+    graphEdges.push({ source: title, target: fixCmd, relation: "FIXED_BY" });
+  } else if (pyMod) {
+    const pkg = pyMod[1];
+    const fixCmd = `pip install ${pkg}`;
+    title = `Error: Missing Python module '${pkg}'`;
+    actionMetadata.error = "ModuleNotFoundError";
+    actionMetadata.rootCause = `Missing Python package '${pkg}'`;
+    actionMetadata.fix = fixCmd;
+    graphEdges.push({ source: title, target: fixCmd, relation: "FIXED_BY" });
+  } else if (portErr) {
+    const port = portErr[1];
+    const fixCmd = `npx kill-port ${port}`;
+    title = `Error: Port ${port} already in use (EADDRINUSE)`;
+    actionMetadata.error = "EADDRINUSE";
+    actionMetadata.rootCause = `Port ${port} locked by another process`;
+    actionMetadata.fix = fixCmd;
+    graphEdges.push({ source: title, target: fixCmd, relation: "FIXED_BY" });
+  } else if (syntaxErr) {
+    const errType = syntaxErr[1];
+    const errMsg = syntaxErr[2].trim();
+    title = `${errType}: ${errMsg.slice(0, 45)}`;
+    actionMetadata.error = errType;
+    actionMetadata.rootCause = errMsg;
+    actionMetadata.fix = `Inspect stack trace for ${errType}`;
   }
 
-  // Detect file mentions for Knowledge Graph
+  // B. Extract File & Component Graph Nodes
   const fileMentions = (rawContent + " " + windowTitle).match(
-    /\b([a-zA-Z0-9_-]+\.(?:py|ts|tsx|js|mjs|json|md))\b/g
+    /\b([a-zA-Z0-9_-]+\.(?:py|ts|tsx|js|mjs|json|md|sql|html))\b/g
   );
   if (fileMentions) {
     for (const fm of new Set(fileMentions)) {
@@ -46,26 +82,44 @@ export function analyzeCapture(input: {
     }
   }
 
-  // Detect architectural decision blocks
+  // C. Extract Architectural Decisions (Decision + Alternatives + Reasoning)
   const lower = rawContent.toLowerCase();
-  if (lower.includes("decision:") || lower.includes("why we chose")) {
-    const reasonMatch = rawContent.match(/(?:reason|because|why)[:\s]+([^\n.]+)/i);
-    const altMatch = rawContent.match(/(?:alternatives|instead of|over)[:\s]+([^\n.]+)/i);
+  if (
+    lower.includes("decision:") ||
+    lower.includes("why we chose") ||
+    lower.includes("we decided to") ||
+    lower.includes("switched from")
+  ) {
+    const reasonMatch = rawContent.match(/(?:reason|reasoning|because|why)[:\s]+([^\n.]+)/i);
+    const altMatch = rawContent.match(/(?:alternatives|instead of|over|rejected)[:\s]+([^\n.]+)/i);
     decisionData = {
       title,
       chosen: firstLine,
-      reasoning: reasonMatch ? reasonMatch[1].trim() : "Captured from architectural note",
+      reasoning: reasonMatch ? reasonMatch[1].trim() : "Captured from architectural rationale note",
       alternatives: altMatch
-        ? altMatch[1].split(",").map((a) => a.trim())
+        ? altMatch[1].split(",").map((a) => a.trim()).filter(Boolean)
         : [],
     };
   }
 
-  const summary =
-    `[${routedModel}] ` +
-    (actionMetadata.fix
-      ? `Diagnosed ${actionMetadata.error} -> Fix: \`${actionMetadata.fix}\``
-      : lines.slice(0, 2).join(" ").slice(0, 180));
+  // D. Optional live LLM summary upgrade (only when Ollama/Cloud backend is reachable)
+  let llmSummary = "";
+  if (rawContent.length > 120) {
+    llmSummary = await llmBridge.completeText(
+      "Summarize this developer capture in 1 concise sentence (< 25 words) focusing on technical facts.",
+      rawContent.slice(0, 1500),
+      80
+    );
+  }
+
+  let summary: string;
+  if (llmSummary) {
+    summary = `[${routedModel}] ${llmSummary}`;
+  } else if (actionMetadata.fix) {
+    summary = `[${routedModel}] Diagnosed ${actionMetadata.error} -> Suggested Fix: \`${actionMetadata.fix}\``;
+  } else {
+    summary = `[${routedModel}] ` + lines.slice(0, 2).join(" ").slice(0, 180);
+  }
 
   return {
     title,

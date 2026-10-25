@@ -3,7 +3,7 @@
 // Workspace state — zustand store for Project Brain OS UI
 
 import { create } from "zustand";
-import type { BrainProject, CompressionReport, ProjectDetails } from "@/lib/brain/types";
+import type { BrainProject, CompressionReport, LlmBackend, ProjectDetails } from "@/lib/brain/types";
 
 export type WorkspaceTab = "vault" | "timeline" | "graph" | "context";
 
@@ -25,6 +25,7 @@ interface WorkspaceState extends DialogState {
   compressing: boolean;
   tab: WorkspaceTab;
   searchSeed: string;
+  llmBackend: LlmBackend | null; // detected AI backend (v2 HybridLLMBridge)
 
   bootstrap: () => Promise<void>;
   loadProjects: () => Promise<void>;
@@ -54,6 +55,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   compressing: false,
   tab: "vault",
   searchSeed: "",
+  llmBackend: null,
   captureOpen: false,
   newProjectOpen: false,
   decisionOpen: false,
@@ -63,7 +65,9 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   bootstrap: async () => {
     try {
       // GET /health triggers first-boot seeding (3 projects + demo captures)
-      await jsonFetch("/api/health");
+      // and reports the detected AI backend (Ollama / Cloud / Offline Synthesizer)
+      const health = await jsonFetch<{ status: string; llm_backend?: LlmBackend }>("/api/health");
+      set({ llmBackend: health.llm_backend ?? null });
       await get().loadProjects();
       const first = get().projects[0];
       if (first) {

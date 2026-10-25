@@ -1,0 +1,31 @@
+# ⏪ Tier-1 Control Plane — Chronological Work Session Replay
+
+## 📅 2026-10-25 (28 captures)
+- **`19:26:34` [NOTE] Decision: Use Playwright trace viewer instead of raw screenshots** *(GuidedTestHarness)* — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots Reason: Easier DOM replay.
+- **`19:26:33` [NOTE] Decision: Use Playwright trace viewer instead of raw screenshots** *(GuidedTestHarness)* — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots Reason: Easier DOM replay.
+- **`19:26:33` [SESSION] Work Session 2026-10-25 · 18:24–19:26 · 19 captures** *(MemoryCompressionDaemon)* — Rolled up 19 captures (9 screenshots, 9 notes, 1 terminal) · topics: playwright, error, decision, instead
+- **`19:26:29` [NOTE] Decision: Use Playwright trace viewer instead of raw screenshots** *(GuidedTestHarness)* — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots Reason: Easier DOM replay.
+- **`19:26:28` [SCREENSHOT] Error: Missing Node dependency 'playwright'** *(BlueprintVerifySuite)* — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add playwright`
+- **`19:26:28` [SESSION] Work Session 2026-10-25 · 18:24–19:25 · 17 captures** *(MemoryCompressionDaemon)* — Rolled up 17 captures (8 screenshots, 8 notes, 1 terminal) · topics: playwright, error, decision, instead
+- **`19:25:04` [NOTE] Decision: Use Playwright trace viewer instead of raw screenshots** *(GuidedTestHarness)* — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots Reason: Easier DOM replay.
+- **`19:25:04` [SCREENSHOT] Error: Missing Node dependency 'playwright'** *(BlueprintVerifySuite)* — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add playwright`
+- **`19:24:59` [NOTE] Decision: Use Playwright trace viewer instead of raw screenshots** *(GuidedTestHarness)* — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots Reason: Easier DOM replay.
+- **`19:24:58` [SCREENSHOT] Error: Missing Node dependency 'playwright'** *(BlueprintVerifySuite)* — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add playwright`
+- **`19:24:58` [NOTE] Decision: Use Playwright trace viewer instead of raw screenshots** *(GuidedTestHarness)* — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots Reason: Easier DOM replay.
+- **`19:24:57` [SCREENSHOT] Error: Missing Node dependency 'playwright'** *(BlueprintVerifySuite)* — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add playwright`
+- **`19:24:57` [SESSION] Work Session 2026-10-25 · 18:24–19:23 · 11 captures** *(MemoryCompressionDaemon)* — Rolled up 11 captures (5 screenshots, 5 notes, 1 terminal) · topics: playwright, error, decision, instead
+- **`19:23:52` [NOTE] Decision: Use Playwright trace viewer instead of raw screenshots** *(GuidedTestHarness)* — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots Reason: Easier DOM replay.
+- **`19:23:51` [SCREENSHOT] Error: Missing Node dependency 'playwright'** *(BlueprintVerifySuite)* — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add playwright`
+- **`19:23:20` [NOTE] Decision: Use Playwright trace viewer instead of raw screenshots** *(GuidedTestHarness)* — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots Reason: Easier DOM replay.
+- **`19:23:20` [SESSION] Work Session 2026-10-25 · 18:24–19:23 · 8 captures** *(MemoryCompressionDaemon)* — Rolled up 8 captures (4 screenshots, 3 notes, 1 terminal) · topics: playwright, error, decision, instead
+- **`19:23:20` [NOTE] Decision: Use Playwright trace viewer instead of raw screenshots** *(GuidedTestHarness)* — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots Reason: Easier DOM replay.
+- **`19:23:19` [SCREENSHOT] Error: Missing Node dependency 'playwright'** *(BlueprintVerifySuite)* — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add playwright`
+- **`19:23:15` [NOTE] Decision: Use Playwright trace viewer instead of raw screenshots** *(GuidedTestHarness)* — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots Reason: Easier DOM replay.
+- **`19:23:14` [SESSION] Work Session 2026-10-25 · 18:24–19:22 · 5 captures** *(MemoryCompressionDaemon)* — Rolled up 5 captures (3 screenshots, 1 terminal, 1 note) · topics: playwright, error, cannot, dependency
+- **`19:22:23` [NOTE] Decision: Use Playwright trace viewer instead of raw screenshots** *(GuidedTestHarness)* — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots Reason: Easier DOM replay.
+- **`18:59:09` [SESSION] Work Session 2026-10-25 · 18:24–18:59 · 4 captures** *(MemoryCompressionDaemon)* — Rolled up 4 captures (3 screenshots, 1 terminal) · topics: error, playwright, cannot, dependency
+- **`18:59:08` [SCREENSHOT] Error: Missing dependency 'playwright'** *(BlueprintVerifySuite)* — [codex-agent] Diagnosed ModuleNotFound -> Fix: `pnpm add playwright`
+- **`18:58:17` [SESSION] Work Session 2026-10-25 · 18:24–18:44 · 3 captures** *(MemoryCompressionDaemon)* — Rolled up 3 captures (2 screenshots, 1 terminal) · topics: error, playwright, cannot, dependency
+- **`18:44:20` [SCREENSHOT] Error: Missing dependency 'playwright'** *(BlueprintVerifySuite)* — [codex-agent] Diagnosed ModuleNotFound -> Fix: `pnpm add playwright`
+- **`18:43:41` [SCREENSHOT] Error: Missing dependency 'playwright'** *(BlueprintVerifySuite)* — [codex-agent] Diagnosed ModuleNotFound -> Fix: `pnpm add playwright`
+- **`18:24:34` [TERMINAL] Error: Missing dependency 'playwright'** *(Workspace UI)* — [codex-agent] Diagnosed ModuleNotFound -> Fix: `pnpm add playwright`

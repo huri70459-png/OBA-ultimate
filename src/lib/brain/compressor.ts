@@ -1,29 +1,68 @@
-// Project Brain OS — Engine 3: AI Memory Compression Daemon
-// Port/upgrade of the blueprint's memory_compressor.py:
+// Project Brain OS — Engine 3: AI Memory Compression Daemon (v2)
+// Port of the blueprint's memory_compressor.py + the Option-2 memory_compressor.py upgrade:
 //   1. Session Rollup      -> groups captures from one coding block (gap <= 90 min)
 //                             into a "session" item (Universal Timeline / Work Replay
 //                             without 24/7 recording).
 //   2. Project Summary Update -> re-synthesizes rolling memory (Tier 1) per project
 //                             and persists the Knowledge Health Score + gap flags.
+//   3. compressProjectMemory() -> per-project compression (v2): dense < 450-token
+//                             summary, _project_summary.md + _work_replay.md written to
+//                             the real vault on disk, optional live-LLM digest pass.
+//   4. findCrossProjectSolutions() -> Cross-Project Learning: find the fix for a bug
+//                             that was already solved in ANOTHER project (v2).
 // Deterministic (no LLM required), idempotent (deterministic session keys), and
 // safe to run repeatedly. Triggers: manual (UI/POST), auto-idle (>= 6h since last
-// run, kicked off from /api/health), and self-test.
+// run, kicked off from /api/health), after every capture/decision (v2), and self-test.
 
 import { db } from "@/lib/db";
 import { topKeywords } from "./embeddings";
-import { computeHealthAndGaps, ensureVectorIndex, saveItem } from "./store";
+import { llmBridge } from "./llm-bridge";
+import {
+  computeHealthAndGaps,
+  ensureVectorIndex,
+  getProjectGraph,
+  saveItem,
+  searchVault,
+  toDecision,
+  toItem,
+  writeVaultFile,
+} from "./store";
 import type {
   BrainDecision,
   BrainItem,
   BrainProject,
   CompressionReport,
+  CrossProjectSolution,
   HealthGap,
+  ProjectCompressionReport,
 } from "./types";
 
 const SESSION_GAP_MS = 90 * 60 * 1000; // a new session starts after a 90-minute lull
 const MIN_SESSION_ITEMS = 2; // a block needs >= 2 captures to be worth rolling up
 const AUTO_INTERVAL_MS = 6 * 60 * 60 * 1000; // auto/idle cadence: every 6 hours
 const SUMMARY_WINDOW_DAYS = 14;
+const MAX_SUMMARY_CHARS = 1300; // ~325 tokens — keeps Tier 1 well under the 450-token budget
+
+export function healthStatus(score: number): string {
+  return score >= 85 ? "EXCELLENT" : score >= 65 ? "HEALTHY" : "NEEDS ATTENTION";
+}
+
+/** Resolved fix commands + files actively mentioned in the Knowledge Graph. */
+function extractFixesAndFiles(
+  items: BrainItem[],
+  edges: { sourceNode: string; relationType: string }[]
+): { resolvedFixes: string[]; activeFiles: string[] } {
+  const resolvedFixes: string[] = [];
+  const activeFiles = new Set<string>();
+  for (const it of items) {
+    const fix = it.metadata?.fix;
+    if (typeof fix === "string" && fix) resolvedFixes.push(`${it.title} -> \`${fix}\``);
+  }
+  for (const e of edges) {
+    if (e.relationType === "MENTIONED_IN") activeFiles.add(e.sourceNode);
+  }
+  return { resolvedFixes, activeFiles: [...activeFiles] };
+}
 
 // ------------------------------------------
 // Daemon state (per server process)
@@ -199,7 +238,9 @@ function synthesizeRollingSummary(
   items: BrainItem[],
   decisions: BrainDecision[],
   gaps: HealthGap[],
-  lastSessionTitle: string | null
+  lastSessionTitle: string | null,
+  resolvedFixes: string[] = [],
+  activeFiles: string[] = []
 ): string {
   const typeCounts: Record<string, number> = {};
   for (const it of items) typeCounts[it.itemType] = (typeCounts[it.itemType] ?? 0) + 1;
@@ -215,7 +256,7 @@ function synthesizeRollingSummary(
 
   const lines: string[] = [];
   lines.push(
-    `Compressed memory for **${project.name}** (auto-synthesized by the Memory Compression Daemon).`
+    `Compressed memory for **${project.name}** (${items.length} captures: ${typeStr || "none"}; auto-synthesized by the Memory Compression Daemon).`
   );
   lines.push(``);
   lines.push(`## Current Focus`);
@@ -226,22 +267,34 @@ function synthesizeRollingSummary(
   );
   lines.push(``);
   lines.push(`## Recent Activity (last ${SUMMARY_WINDOW_DAYS} days)`);
-  lines.push(`- ${items.length} captures on record (${typeStr || "none"}).${sessionLine}`);
+  lines.push(`- ${items.length} captures on record.${sessionLine}`);
   lines.push(``);
   lines.push(`## Active Decisions (do not violate)`);
   if (decisions.length > 0) {
     for (const d of decisions.slice(0, 5)) {
-      lines.push(`- **${d.title}**: ${d.decision} (Reason: ${d.reasoning})`);
+      lines.push(`- **${d.title.slice(0, 60)}**: ${d.decision.slice(0, 80)} (Reason: ${d.reasoning.slice(0, 60)})`);
     }
   } else {
     lines.push(`- None logged yet — capture choices with 'Decision: ... Reason: ...'`);
+  }
+  lines.push(``);
+  lines.push(`## Resolved Fixes`);
+  if (resolvedFixes.length > 0) {
+    for (const fx of resolvedFixes.slice(0, 4)) lines.push(`- ${fx.slice(0, 130)}`);
+  } else {
+    lines.push(`- No automated bug fixes logged yet.`);
+  }
+  if (activeFiles.length > 0) {
+    lines.push(``);
+    lines.push(`## Key Files on Record`);
+    lines.push(`- ${activeFiles.slice(0, 10).join(", ")}`);
   }
   if (gaps.length > 0) {
     lines.push(``);
     lines.push(`## Knowledge Gaps`);
     for (const g of gaps) lines.push(`- [${g.severity.toUpperCase()}] ${g.gap} — ${g.detail}`);
   }
-  return lines.join("\n");
+  return lines.join("\n").slice(0, MAX_SUMMARY_CHARS);
 }
 
 async function updateProjectSummaries(
@@ -273,30 +326,14 @@ async function updateProjectSummaries(
     // Nothing to derive from — keep existing summary untouched
     if (itemRows.length === 0) continue;
 
-    const items = itemRows.map((r) => ({
-      id: r.id,
-      itemType: r.itemType,
-      title: r.title,
-      structuredSummary: r.structuredSummary,
-      rawContent: r.rawContent,
-      metadata: r.metadata,
-      projectId: r.projectId,
-      capturedAt: r.capturedAt,
-    })) as never as BrainItem[];
+    // Proper parsing via toItem keeps metadata a real object (fixes detection)
+    const items: BrainItem[] = itemRows.map((r) =>
+      toItem({ ...r, metadata: r.metadata })
+    );
 
-    const decisions: BrainDecision[] = decisionRows.map((d) => ({
-      id: d.id,
-      projectId: d.projectId,
-      title: d.title,
-      decision: d.decision,
-      alternatives: [],
-      reasoning: d.reasoning,
-      outcome: d.outcome,
-      sourceItemId: d.sourceItemId,
-      decidedAt: d.decidedAt.toISOString(),
-    }));
+    const decisions: BrainDecision[] = decisionRows.map(toDecision);
 
-    const project = {
+    const project: BrainProject = {
       id: prow.id,
       name: prow.name,
       slug: prow.slug,
@@ -308,6 +345,8 @@ async function updateProjectSummaries(
       updatedAt: prow.updatedAt.toISOString(),
     };
 
+    const edges = await getProjectGraph(prow.id, 50);
+    const { resolvedFixes, activeFiles } = extractFixesAndFiles(items, edges);
     const { score, gaps } = computeHealthAndGaps(project, items, decisions);
     gapReport[project.name] = gaps;
 
@@ -322,7 +361,9 @@ async function updateProjectSummaries(
       items,
       decisions,
       gaps,
-      lastSessionRow?.title ?? null
+      lastSessionRow?.title ?? null,
+      resolvedFixes,
+      activeFiles
     );
 
     // Only write when content actually changed (no churn on repeated runs)
@@ -388,4 +429,206 @@ export async function runCompressionCycle(
   } finally {
     inflight = null;
   }
+}
+
+// ==========================================
+// 3. PER-PROJECT COMPRESSION (v2, port of memory_compressor.compress_project_memory)
+// Kills token exhaustion: compresses notes, screenshots, decisions and bug fixes into a
+// dense summary (< 450 tokens), persists it as Tier-1 rolling memory, and writes
+// _project_summary.md + _work_replay.md into the real vault on disk.
+// ==========================================
+
+async function writeWorkSessionReplay(
+  projectSlug: string,
+  projectName: string,
+  items: BrainItem[]
+): Promise<string> {
+  const relPath = `ProjectBrainVault/Projects/${projectSlug}/_work_replay.md`;
+  const grouped = new Map<string, BrainItem[]>();
+  for (const it of items) {
+    const day = (it.capturedAt || "").slice(0, 10) || "Unknown-Date";
+    const arr = grouped.get(day) ?? [];
+    arr.push(it);
+    grouped.set(day, arr);
+  }
+
+  const lines: string[] = [`# ⏪ ${projectName} — Chronological Work Session Replay`, ""];
+  const days = [...grouped.keys()].sort((a, b) => b.localeCompare(a));
+  for (const day of days) {
+    const dayItems = grouped.get(day)!;
+    lines.push(`## 📅 ${day} (${dayItems.length} captures)`);
+    for (const it of dayItems) {
+      const timePart = (it.capturedAt || "").slice(11, 19);
+      lines.push(
+        `- **\`${timePart}\` [${it.itemType.toUpperCase()}] ${it.title}**` +
+          ` *(${it.sourceApp || "App"})* — ${it.structuredSummary || ""}`
+      );
+    }
+    lines.push("");
+  }
+
+  await writeVaultFile(relPath, lines.join("\n"));
+  return relPath;
+}
+
+export async function compressProjectMemory(
+  projectId: string,
+  opts: { skipDiskWrites?: boolean } = {}
+): Promise<ProjectCompressionReport | { error: string }> {
+  const prow = await db.project.findUnique({ where: { id: projectId } });
+  if (!prow) return { error: `Project '${projectId}' not found` };
+
+  const [itemRows, decisionRows] = await Promise.all([
+    db.item.findMany({
+      where: { projectId },
+      orderBy: { capturedAt: "desc" },
+      take: 100,
+    }),
+    db.decision.findMany({
+      where: { projectId },
+      orderBy: { decidedAt: "desc" },
+      take: 25,
+    }),
+  ]);
+  const edges = await getProjectGraph(projectId, 100);
+
+  const items: BrainItem[] = itemRows.map((r) => toItem(r));
+  const decisions: BrainDecision[] = decisionRows.map(toDecision);
+  const project: BrainProject = {
+    id: prow.id,
+    name: prow.name,
+    slug: prow.slug,
+    rootPath: prow.rootPath,
+    keywords: JSON.parse(prow.keywords || "[]") as string[],
+    gitRemotes: JSON.parse(prow.gitRemotes || "[]") as string[],
+    rollingSummary: prow.rollingSummary,
+    createdAt: prow.createdAt.toISOString(),
+    updatedAt: prow.updatedAt.toISOString(),
+  };
+
+  const notesCount = items.filter((i) => i.itemType === "note").length;
+  const shotsCount = items.filter((i) => i.itemType === "screenshot").length;
+  const termsCount = items.filter((i) => i.itemType === "terminal").length;
+
+  const { resolvedFixes, activeFiles } = extractFixesAndFiles(items, edges);
+  const { score, gaps } = computeHealthAndGaps(project, items, decisions);
+
+  const lastSessionRow = await db.item.findFirst({
+    where: { projectId, itemType: "session" },
+    orderBy: { capturedAt: "desc" },
+    select: { title: true },
+  });
+
+  // Deterministic compressed digest (works offline, zero API keys)
+  let finalSummary = synthesizeRollingSummary(
+    project,
+    items,
+    decisions,
+    gaps,
+    lastSessionRow?.title ?? null,
+    resolvedFixes,
+    activeFiles
+  );
+
+  // Optional live-LLM compression pass (Ollama / OpenAI) — falls back seamlessly
+  let llmDigestUsed = false;
+  const llmDigest = await llmBridge.completeText(
+    "Compress the following project state into a dense, factual paragraph (< 120 words) " +
+      "for an AI coding assistant. Preserve exact filenames, decisions, and package fixes.",
+    finalSummary,
+    200
+  );
+  if (llmDigest) {
+    finalSummary = llmDigest.slice(0, MAX_SUMMARY_CHARS);
+    llmDigestUsed = true;
+  }
+
+  const now = new Date();
+  await db.project.update({
+    where: { id: projectId },
+    data: {
+      rollingSummary: finalSummary,
+      healthScore: score,
+      healthGaps: JSON.stringify(gaps),
+      lastCompressedAt: now,
+      updatedAt: now,
+    },
+  });
+
+  // v2: write the enriched _project_summary.md + _work_replay.md to the real vault
+  const summaryRelPath = `ProjectBrainVault/Projects/${project.slug}/_project_summary.md`;
+  if (!opts.skipDiskWrites) {
+    const decisionsMd =
+      decisions
+        .map((d) => `- **${d.title}**: ${d.decision} *(Reason: ${d.reasoning})*`)
+        .join("\n") || "- None recorded yet.";
+    const fixesMd = resolvedFixes.map((fx) => `- ${fx}`).join("\n") || "- None recorded yet.";
+    const gapsMd = gaps.map((g) => `- ⚠️ ${g.gap} — ${g.detail}`).join("\n") || "- ✅ No knowledge gaps detected!";
+    const keywords = topKeywords(items.map((i) => `${i.title} ${i.rawContent}`).join(" "), 8);
+
+    await writeVaultFile(
+      summaryRelPath,
+      `# ${project.name} — Compressed Project Brain\n\n` +
+        `- **Health Score:** ${score}/100 (${healthStatus(score)})\n` +
+        `- **Total Captures Indexed:** ${items.length} (${notesCount} notes, ${shotsCount} screenshots, ${termsCount} terminal logs)\n` +
+        `- **Decisions Logged:** ${decisions.length}\n` +
+        `- **Last Compressed:** ${now.toISOString()}\n\n` +
+        `## 1. Compressed Rolling Memory (Tier-1 Prompt Payload)\n${finalSummary}\n\n` +
+        `## 2. Key Architectural Decisions\n${decisionsMd}\n\n` +
+        `## 3. Known Bug Fixes & Actionable Remedies\n${fixesMd}\n\n` +
+        `## 4. Knowledge Gaps & Recommendations\n${gapsMd}\n` +
+        (activeFiles.length > 0 ? `\n## 5. Key Files\n- ${activeFiles.slice(0, 10).join(", ")}\n` : "") +
+        (keywords.length > 0 ? `\n_Topics: ${keywords.join(", ")}_\n` : "")
+    );
+  }
+  const replayRelPath = opts.skipDiskWrites
+    ? `ProjectBrainVault/Projects/${project.slug}/_work_replay.md`
+    : await writeWorkSessionReplay(project.slug, project.name, items);
+
+  return {
+    project_id: project.id,
+    project_name: project.name,
+    compressed_rolling_summary: finalSummary,
+    estimated_summary_tokens: Math.max(1, Math.floor(finalSummary.length / 4)),
+    health: {
+      score,
+      status: healthStatus(score),
+      gaps: gaps.map((g) => g.gap),
+    },
+    summary_file: summaryRelPath,
+    work_replay_file: replayRelPath,
+    items_compressed: items.length,
+    llm_digest_used: llmDigestUsed,
+  };
+}
+
+// ==========================================
+// 4. CROSS-PROJECT LEARNING & BUG REUSE DETECTOR (v2)
+// Searches across ALL OTHER projects to check if a bug was already solved elsewhere.
+// ==========================================
+
+export async function findCrossProjectSolutions(
+  errorQuery: string,
+  excludeProjectId: string | null = null
+): Promise<CrossProjectSolution[]> {
+  const hits = await searchVault(errorQuery, null, 15);
+  const reusable: CrossProjectSolution[] = [];
+
+  for (const h of hits) {
+    if (excludeProjectId && h.projectId === excludeProjectId) continue;
+    let sourceProject = "Inbox";
+    if (h.projectId) {
+      const proj = await db.project.findUnique({ where: { id: h.projectId }, select: { name: true } });
+      sourceProject = proj?.name ?? "Inbox";
+    }
+    reusable.push({
+      item_id: h.id,
+      source_project: sourceProject,
+      title: h.title,
+      summary: h.structuredSummary,
+      suggested_fix: typeof h.metadata?.fix === "string" ? h.metadata.fix : "",
+      captured_at: h.capturedAt,
+    });
+  }
+  return reusable;
 }
