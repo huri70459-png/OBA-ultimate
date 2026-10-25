@@ -48,7 +48,12 @@ export function CaptureDialog() {
       });
       const data: CaptureResult = await res.json();
       if (!res.ok) throw new Error((data as unknown as { error: string }).error);
-      toast({ title: "Captured — Zero-Save", description: data.toastNotification });
+      if (data.status === "duplicate_merged") {
+        // v2.1: exact duplicate folding — the repeat capture merged into the existing item
+        toast({ title: "Duplicate folded — no new item", description: data.toastNotification });
+      } else {
+        toast({ title: "Captured — Zero-Save", description: data.toastNotification });
+      }
       setContent("");
       setWindowTitle("");
       close("captureOpen");
@@ -525,10 +530,11 @@ export function SelfTestDialog() {
         <DialogHeader>
           <DialogTitle className="text-white">🩺 Guided Scenario &amp; Chaos Test</DialogTitle>
           <DialogDescription className="text-slate-400">
-            Runs 8 real-world scenarios against the live engine: vault init, zero-save capture,
-            ambiguous multi-project chaos, two-way disk sync, memory compression &amp; work replay,
-            anti-drift prompt budget, cross-project reuse, and MCP resilience — with plain-English
-            fix pointers if anything ever breaks.
+            Runs 10 real-world scenarios against the live engine: vault init, zero-save capture,
+            ambiguous multi-project chaos, two-way disk sync, memory compression &amp; session
+            replay, anti-drift prompt budget, cross-project reuse, MCP resilience, v2.1 exact
+            duplicate folding, and v2.1 inbox triage + grounded ask — with plain-English fix
+            pointers if anything ever breaks.
           </DialogDescription>
         </DialogHeader>
 

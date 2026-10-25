@@ -1,5 +1,6 @@
-// Project Brain OS — Engine 3: AI Memory Compression Daemon (v2)
-// Port of the blueprint's memory_compressor.py + the Option-2 memory_compressor.py upgrade:
+// Project Brain OS — Engine 3: AI Memory Compression Daemon (v2.1)
+// Port of the blueprint's memory_compressor.py + the Option-1 upgrade + the v2.1
+// Part A refresh:
 //   1. Session Rollup      -> groups captures from one coding block (gap <= 90 min)
 //                             into a "session" item (Universal Timeline / Work Replay
 //                             without 24/7 recording).
@@ -8,6 +9,8 @@
 //   3. compressProjectMemory() -> per-project compression (v2): dense < 450-token
 //                             summary, _project_summary.md + _work_replay.md written to
 //                             the real vault on disk, optional live-LLM digest pass.
+//                             v2.1: the replay is REGENERATED session-based (45-minute
+//                             work sessions) and folds exact duplicates into ×N counts.
 //   4. findCrossProjectSolutions() -> Cross-Project Learning: find the fix for a bug
 //                             that was already solved in ANOTHER project (v2).
 // Deterministic (no LLM required), idempotent (deterministic session keys), and
@@ -38,6 +41,7 @@ import type {
 } from "./types";
 
 const SESSION_GAP_MS = 90 * 60 * 1000; // a new session starts after a 90-minute lull
+const REPLAY_SESSION_GAP_MS = 45 * 60 * 1000; // v2.1 replay: 45-minute work sessions
 const MIN_SESSION_ITEMS = 2; // a block needs >= 2 captures to be worth rolling up
 const AUTO_INTERVAL_MS = 6 * 60 * 60 * 1000; // auto/idle cadence: every 6 hours
 const SUMMARY_WINDOW_DAYS = 14;
@@ -271,7 +275,20 @@ function synthesizeRollingSummary(
   lines.push(``);
   lines.push(`## Active Decisions (do not violate)`);
   if (decisions.length > 0) {
-    for (const d of decisions.slice(0, 5)) {
+    // v2.2: de-duplicate by normalized decision text. Repeated captures of the same
+    // choice log multiple Decision rows, and a degenerate 5x-same-decision list
+    // floods the Tier-1 char budget, crowding out fixes/gaps (and repeating itself
+    // verbatim in every injected prompt).
+    const seenDecisions = new Set<string>();
+    const uniqueDecisions: BrainDecision[] = [];
+    for (const d of decisions) {
+      const key = `${d.decision.trim().toLowerCase()}|${d.title.trim().toLowerCase()}`;
+      if (seenDecisions.has(key)) continue;
+      seenDecisions.add(key);
+      uniqueDecisions.push(d);
+      if (uniqueDecisions.length >= 5) break;
+    }
+    for (const d of uniqueDecisions) {
       lines.push(`- **${d.title.slice(0, 60)}**: ${d.decision.slice(0, 80)} (Reason: ${d.reasoning.slice(0, 60)})`);
     }
   } else {
@@ -279,8 +296,10 @@ function synthesizeRollingSummary(
   }
   lines.push(``);
   lines.push(`## Resolved Fixes`);
-  if (resolvedFixes.length > 0) {
-    for (const fx of resolvedFixes.slice(0, 4)) lines.push(`- ${fx.slice(0, 130)}`);
+  // v2.2: dedupe identical fix lines for the same reason as decisions above.
+  const uniqueFixes = [...new Set(resolvedFixes.map((f) => f.trim()).filter(Boolean))];
+  if (uniqueFixes.length > 0) {
+    for (const fx of uniqueFixes.slice(0, 4)) lines.push(`- ${fx.slice(0, 130)}`);
   } else {
     lines.push(`- No automated bug fixes logged yet.`);
   }
@@ -347,7 +366,7 @@ async function updateProjectSummaries(
 
     const edges = await getProjectGraph(prow.id, 50);
     const { resolvedFixes, activeFiles } = extractFixesAndFiles(items, edges);
-    const { score, gaps } = computeHealthAndGaps(project, items, decisions);
+    const { score, gaps } = computeHealthAndGaps(project, items, decisions, resolvedFixes);
     gapReport[project.name] = gaps;
 
     const lastSessionRow = await db.item.findFirst({
@@ -444,6 +463,10 @@ async function writeWorkSessionReplay(
   items: BrainItem[]
 ): Promise<string> {
   const relPath = `ProjectBrainVault/Projects/${projectSlug}/_work_replay.md`;
+
+  // v2.1 (port of memory_compressor._write_work_session_replay): one regenerated file
+  // per compression — day blocks carry "N unique captures / M occurrences" headers,
+  // activity is grouped into 45-minute work sessions, and exact repeats fold into ×N.
   const grouped = new Map<string, BrainItem[]>();
   for (const it of items) {
     const day = (it.capturedAt || "").slice(0, 10) || "Unknown-Date";
@@ -452,18 +475,58 @@ async function writeWorkSessionReplay(
     grouped.set(day, arr);
   }
 
-  const lines: string[] = [`# ⏪ ${projectName} — Chronological Work Session Replay`, ""];
+  const occurrencesOf = (it: BrainItem): number =>
+    Math.max(1, Number(it.metadata?.occurrence_count ?? 1));
+
+  const lines: string[] = [
+    `# ${projectName} — Work Replay`,
+    "",
+    "> Regenerated from captures; repeated exact captures are folded into occurrence counts.",
+    "",
+  ];
   const days = [...grouped.keys()].sort((a, b) => b.localeCompare(a));
   for (const day of days) {
     const dayItems = grouped.get(day)!;
-    lines.push(`## 📅 ${day} (${dayItems.length} captures)`);
-    for (const it of dayItems) {
-      const timePart = (it.capturedAt || "").slice(11, 19);
-      lines.push(
-        `- **\`${timePart}\` [${it.itemType.toUpperCase()}] ${it.title}**` +
-          ` *(${it.sourceApp || "App"})* — ${it.structuredSummary || ""}`
-      );
+    const totalOccurrences = dayItems.reduce((acc, it) => acc + occurrencesOf(it), 0);
+    lines.push(
+      `## ${day} · ${dayItems.length} unique captures / ${totalOccurrences} occurrences`
+    );
+
+    // Chronological split into work sessions whenever the capture gap exceeds 45 minutes
+    const chrono = [...dayItems].sort((a, b) =>
+      (a.capturedAt || "").localeCompare(b.capturedAt || "")
+    );
+    const sessions: BrainItem[][] = [];
+    let current: BrainItem[] = [];
+    let priorMs: number | null = null;
+    for (const it of chrono) {
+      const stampMs = Date.parse(it.capturedAt || "");
+      if (
+        current.length > 0 &&
+        Number.isFinite(stampMs) &&
+        priorMs !== null &&
+        stampMs - priorMs > REPLAY_SESSION_GAP_MS
+      ) {
+        sessions.push(current);
+        current = [];
+      }
+      current.push(it);
+      if (Number.isFinite(stampMs)) priorMs = stampMs;
     }
+    if (current.length > 0) sessions.push(current);
+
+    sessions.forEach((session, idx) => {
+      const first = (session[0].capturedAt || "").slice(11, 16);
+      const last = (session[session.length - 1].capturedAt || "").slice(11, 16);
+      lines.push("", `### Session ${idx + 1} · ${first}–${last}`);
+      for (const it of session) {
+        const count = occurrencesOf(it);
+        const suffix = count > 1 ? ` ×${count}` : "";
+        lines.push(
+          `- **[${it.itemType.toUpperCase()}] ${it.title}**${suffix} — ${it.structuredSummary || ""}`
+        );
+      }
+    });
     lines.push("");
   }
 
@@ -509,9 +572,14 @@ export async function compressProjectMemory(
   const notesCount = items.filter((i) => i.itemType === "note").length;
   const shotsCount = items.filter((i) => i.itemType === "screenshot").length;
   const termsCount = items.filter((i) => i.itemType === "terminal").length;
+  // v2.1: unique captures represent MORE observed occurrences after duplicate folding
+  const occurrencesRepresented = items.reduce(
+    (acc, it) => acc + Math.max(1, Number(it.metadata?.occurrence_count ?? 1)),
+    0
+  );
 
   const { resolvedFixes, activeFiles } = extractFixesAndFiles(items, edges);
-  const { score, gaps } = computeHealthAndGaps(project, items, decisions);
+  const { score, gaps } = computeHealthAndGaps(project, items, decisions, resolvedFixes);
 
   const lastSessionRow = await db.item.findFirst({
     where: { projectId, itemType: "session" },
@@ -570,7 +638,8 @@ export async function compressProjectMemory(
       summaryRelPath,
       `# ${project.name} — Compressed Project Brain\n\n` +
         `- **Health Score:** ${score}/100 (${healthStatus(score)})\n` +
-        `- **Total Captures Indexed:** ${items.length} (${notesCount} notes, ${shotsCount} screenshots, ${termsCount} terminal logs)\n` +
+        `- **Unique Captures Indexed:** ${items.length} (${occurrencesRepresented} observed occurrences after duplicate folding)\n` +
+        `- **Composition:** ${notesCount} notes, ${shotsCount} screenshots, ${termsCount} terminal logs\n` +
         `- **Decisions Logged:** ${decisions.length}\n` +
         `- **Last Compressed:** ${now.toISOString()}\n\n` +
         `## 1. Compressed Rolling Memory (Tier-1 Prompt Payload)\n${finalSummary}\n\n` +
@@ -598,6 +667,7 @@ export async function compressProjectMemory(
     summary_file: summaryRelPath,
     work_replay_file: replayRelPath,
     items_compressed: items.length,
+    occurrences_represented: occurrencesRepresented,
     llm_digest_used: llmDigestUsed,
   };
 }
@@ -630,5 +700,12 @@ export async function findCrossProjectSolutions(
       captured_at: h.capturedAt,
     });
   }
-  return reusable;
+  // v2.2: stable partition — items that actually carry an extracted fix ARE the
+  // reusable solutions, so they rank above fixless mentions. Order WITHIN each
+  // group stays exactly as searchVault ranked it (FTS relevance): re-sorting by
+  // recency here would let generic-advice captures ("Inspect stack trace for …")
+  // outrank a strongly-matching real fix from another project.
+  const withFix = reusable.filter((r) => r.suggested_fix);
+  const withoutFix = reusable.filter((r) => !r.suggested_fix);
+  return [...withFix, ...withoutFix];
 }

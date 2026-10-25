@@ -41,7 +41,7 @@ async function jfetch(path, opts) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      raw_content: "Quick thought: the vector index should roll this up into a work session block",
+      raw_content: `Quick thought: the vector index should roll this up into a work session block [run ${Date.now()}]`,
       item_type: "note",
       window_title: "notes.md - project-brain-os - VS Code",
       source_app: "UpgradeVerifySuite",
@@ -51,7 +51,7 @@ async function jfetch(path, opts) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      raw_content: "Quick thought: session rollup groups captures that happen within 90 minutes of each other",
+      raw_content: `Quick thought: session rollup groups captures that happen within 90 minutes of each other [run ${Date.now()}]`,
       item_type: "note",
       window_title: "notes.md - project-brain-os - VS Code",
       source_app: "UpgradeVerifySuite",
@@ -106,11 +106,11 @@ async function jfetch(path, opts) {
   const sessHit = (sessSearch.data.results || []).find(r => r.itemType === "session");
   check("Session rollups are semantically searchable", Boolean(sessHit) && (sessHit.similarity ?? 0) > 0, sessHit ? `"${sessHit.title}" sim=${sessHit.similarity?.toFixed?.(3)}` : "no session hit");
 
-  // ---- J. Self-test (8 guided scenarios) ----
+  // ---- J. Self-test (10 guided scenarios: 8 original + 2 v2.1) ----
   const st = await jfetch("/api/self-test");
   const checks = st.data.checks || [];
   const names = checks.map(c => c.name);
-  check("Self-test runs 8 guided scenarios", checks.length === 8, names.join(" | "));
+  check("Self-test runs 10 guided scenarios", checks.length === 10, names.join(" | "));
   check("Memory Compression scenario PASS", Boolean(checks.find(c => c.name.includes("5. Memory Compression"))?.status === "PASS"), checks.find(c => c.name.includes("5. Memory Compression"))?.detail);
   check("Disk-sync scenario PASS", Boolean(checks.find(c => c.name.includes("4. Two-Way Obsidian"))?.status === "PASS"), checks.find(c => c.name.includes("4. Two-Way Obsidian"))?.detail);
   check("Full self-test suite all PASS", st.data.ok && checks.every(c => c.status === "PASS"), checks.map(c => `${c.name}: ${c.status}`).join(" | "));

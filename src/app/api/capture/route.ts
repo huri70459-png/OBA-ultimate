@@ -20,7 +20,12 @@ export async function POST(req: NextRequest) {
       visualHint: body.visual_hint ?? body.visualHint ?? "",
     });
     // v2 wiring (brain_api.py parity): automatically re-compress project memory
-    // whenever a new capture lands so Tier-1 rolling memory is always fresh.
+    // whenever a NEW capture lands so Tier-1 rolling memory is always fresh.
+    // v2.1: duplicate merges return early like brain_api.py — the item content did
+    // not change (only its occurrence counter), so no recompression is needed.
+    if (result.status === "duplicate_merged") {
+      return NextResponse.json({ ...result, memory_compression: { skipped: true, reason: "duplicate_merged" } });
+    }
     const matchedPid = result.projectMatch?.projectId;
     if (matchedPid) {
       const compression = await compressProjectMemory(matchedPid);

@@ -55,13 +55,15 @@ export function Header() {
             <span className="hidden shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-emerald-400 sm:inline">
               SQLite · Local-First
             </span>
-            <span
-              className="hidden shrink-0 rounded-full border border-violet-500/20 bg-violet-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-violet-300 lg:inline"
-              title={`AI backend: ${llmBackend?.provider ?? "…"} (${llmBackend?.mode ?? "…"}) — auto-detected by the Hybrid LLM Bridge`}
+            <button
+              type="button"
+              onClick={() => openDialog("settingsOpen")}
+              className="hidden shrink-0 cursor-pointer rounded-full border border-violet-500/20 bg-violet-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-violet-300 transition-colors hover:bg-violet-500/20 lg:inline"
+              title={`AI backend: ${llmBackend?.provider ?? "…"} (${llmBackend?.mode ?? "…"}) — click to configure a live LLM, dedup window, or agent token`}
             >
               <Cpu className="mr-1 inline h-3 w-3" aria-hidden />
               {backendLabel}
-            </span>
+            </button>
           </div>
           <p className="hidden truncate text-[11px] text-slate-400 lg:block">
             Everything you see, decide, and build — searchable, linked, and ready for AI execution.

@@ -52,7 +52,7 @@ async function jfetch(path, opts) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      raw_content: "Error: Cannot find module 'playwright'\n    at runBrowserRepair (browser-repair.mjs:31:7)",
+      raw_content: `Error: Cannot find module 'playwright'\n    at runBrowserRepair (browser-repair.mjs:31:7)\n[run ${Date.now()}]`,
       item_type: "screenshot",
       window_title: "Terminal - tier-1-control-plane - VS Code",
       visual_hint: "Red terminal error during browser-repair workflow",
@@ -71,7 +71,7 @@ async function jfetch(path, opts) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      raw_content: "Decision: Use Render over Railway for worker hosting\nAlternatives: Railway, Fly.io, AWS ECS\nReason: Predictable worker pricing and simpler autoscaling.",
+      raw_content: `Decision: Use Render over Railway for worker hosting\nAlternatives: Railway, Fly.io, AWS ECS\nReason: Predictable worker pricing and simpler autoscaling. [rev ${Date.now()}]`,
       item_type: "note",
       window_title: "architecture.md - three-musketeers - VS Code",
       source_app: "BlueprintVerifySuite",

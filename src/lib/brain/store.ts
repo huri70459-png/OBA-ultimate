@@ -3,7 +3,7 @@
 // + REAL on-disk Obsidian-style vault (v2: two-way markdown disk sync)
 
 import { randomUUID } from "crypto";
-import { mkdir, readFile, writeFile } from "fs/promises";
+import { mkdir, readFile, rename, writeFile } from "fs/promises";
 import path from "path";
 import { db } from "@/lib/db";
 import {
@@ -22,6 +22,7 @@ import type {
   GraphEdge,
   ProjectDetails,
   TimelineEntry,
+  TriageResult,
 } from "./types";
 
 type ProjectRow = {
@@ -391,6 +392,104 @@ export async function saveItem(input: {
 }
 
 // ==========================================
+// v2.1 INBOX TRIAGE & RESOLUTION (port of brain_api.list_inbox / triage_item / resolve_item)
+// Triage physically MOVES the vault .md file from ProjectBrainVault/Inbox/ into the
+// target project's notes/ or captures/ folder, re-points SQLite + the vector sidecar,
+// and stamps triage state into the item metadata. Resolution records an optional note.
+// ==========================================
+
+export async function listInbox(limit = 80): Promise<BrainItem[]> {
+  const rows = await db.item.findMany({
+    where: { projectId: null },
+    orderBy: { capturedAt: "desc" },
+    take: Math.max(1, Math.min(Math.floor(limit) || 80, 200)),
+  });
+  return rows.map((r) => toItem({ ...r, metadata: r.metadata }));
+}
+
+export async function triageItem(itemId: string, projectId: string): Promise<TriageResult> {
+  const row = await db.item.findUnique({ where: { id: itemId } });
+  if (!row) return { ok: false, item_id: itemId, project_id: projectId, project_name: "", file_moved: false, file_path: "", error: "Item not found" };
+  const prow = await db.project.findUnique({ where: { id: projectId } });
+  if (!prow) return { ok: false, item_id: itemId, project_id: projectId, project_name: "", file_moved: false, file_path: "", error: "Project not found" };
+  if (row.projectId === projectId) {
+    return { ok: false, item_id: itemId, project_id: projectId, project_name: prow.name, file_moved: false, file_path: row.filePath, error: "Item already belongs to this project" };
+  }
+
+  const item = toItem({ ...row, metadata: row.metadata });
+  const subfolder = ["screenshot", "clip", "terminal"].includes(item.itemType) ? "captures" : "notes";
+  const destDir = path.join(vaultRoot(), "Projects", prow.slug, subfolder);
+  let newPath = item.filePath; // fallback when there is no disk file to move
+  let fileMoved = false;
+
+  try {
+    await mkdir(destDir, { recursive: true });
+    const oldAbs = resolveVaultPath(item.filePath);
+    let candidate = path.join(destDir, path.basename(item.filePath || `${item.id}.md`));
+    // Avoid clobbering an existing file with the same name (36h dedup makes this rare)
+    try {
+      await readFile(candidate, "utf-8");
+      candidate = path.join(destDir, `${item.id}_${path.basename(item.filePath || "capture.md")}`);
+    } catch {
+      /* name is free */
+    }
+    try {
+      await rename(oldAbs, candidate);
+      fileMoved = true;
+      newPath = path.relative(process.cwd(), candidate).split(path.sep).join("/");
+    } catch {
+      fileMoved = false; // source file missing — keep path as-is
+    }
+  } catch {
+    fileMoved = false; // disk failure never breaks triage
+  }
+
+  const metadata = { ...item.metadata };
+  metadata.triage_status = "triaged";
+  metadata.triaged_at = new Date().toISOString();
+  metadata.triaged_to = prow.name;
+
+  const now = new Date();
+  await db.item.update({
+    where: { id: itemId },
+    data: {
+      projectId: prow.id,
+      filePath: newPath,
+      metadata: JSON.stringify(metadata),
+    },
+  });
+  await db.project.update({ where: { id: prow.id }, data: { updatedAt: now } });
+
+  // The vector sidecar carries projectId for scoped semantic search — re-point it
+  await db.itemVector.updateMany({ where: { itemId }, data: { projectId: prow.id } });
+
+  return {
+    ok: true,
+    item_id: itemId,
+    project_id: prow.id,
+    project_name: prow.name,
+    file_moved: fileMoved,
+    file_path: newPath,
+  };
+}
+
+export async function resolveItem(
+  itemId: string,
+  resolution: string
+): Promise<{ ok: boolean; item_id: string; triage_status: string; error?: string }> {
+  const row = await db.item.findUnique({ where: { id: itemId } });
+  if (!row) return { ok: false, item_id: itemId, triage_status: "", error: "Item not found" };
+
+  const metadata = toItem({ ...row, metadata: row.metadata }).metadata;
+  metadata.triage_status = "resolved";
+  metadata.resolution = resolution.trim();
+  metadata.resolved_at = new Date().toISOString();
+
+  await db.item.update({ where: { id: itemId }, data: { metadata: JSON.stringify(metadata) } });
+  return { ok: true, item_id: itemId, triage_status: "resolved" };
+}
+
+// ==========================================
 // TWO-WAY OBSIDIAN DISK SYNC (v2, port of memory_compressor.sync_markdown_edits_from_disk)
 // If the user edited a tracked .md file directly on disk (Obsidian / VS Code),
 // sync the new content back into SQLite and re-embed the semantic vector.
@@ -743,14 +842,17 @@ export interface ComputedHealth {
 }
 
 /**
- * Deterministic Knowledge Health scoring + gap detection.
+ * Deterministic Knowledge Health scoring + gap detection (v2.1-aligned).
  * Base: 40 + 20 summary + 20 decisions + min(20, items*5); gaps subtract up to 20.
- * Blueprint example: "40 screenshots of database errors but no Database Architecture doc" -> flagged.
+ * v2.1 adds the "fixes without a root-cause decision" rule from
+ * memory_compressor._compute_health_and_gaps. Blueprint example: "40 screenshots of
+ * database errors but no Database Architecture doc" -> flagged.
  */
 export function computeHealthAndGaps(
   project: BrainProject,
   items: BrainItem[],
-  decisions: BrainDecision[]
+  decisions: BrainDecision[],
+  resolvedFixes: string[] = []
 ): ComputedHealth {
   const gaps: ComputedHealth["gaps"] = [];
   let score =
@@ -818,6 +920,15 @@ export function computeHealthAndGaps(
     });
   }
 
+  // Gap 6 (v2.1) — fixes exist without a corresponding root-cause decision
+  if (resolvedFixes.length > 0 && decisions.length === 0) {
+    gaps.push({
+      gap: "Fixes without a root-cause decision",
+      detail: `${resolvedFixes.length} fix(es) logged but no architectural decision explains the root cause — capture the 'why' with 'Decision: ... Reason: ...'`,
+      severity: "medium",
+    });
+  }
+
   const penalty = gaps.reduce(
     (acc, g) => acc + (g.severity === "high" ? 8 : g.severity === "medium" ? 4 : 2),
     0
@@ -843,7 +954,11 @@ export async function getProjectDetails(projectId: string): Promise<ProjectDetai
 
   const items = itemRows.map(toItem);
   const decisions = decisionRows.map(toDecision);
-  const { score, gaps } = computeHealthAndGaps(project, items, decisions);
+  // v2.1: resolved fixes feed the "fixes without a root-cause decision" health gap
+  const resolvedFixes = items
+    .map((it) => (typeof it.metadata?.fix === "string" ? it.metadata.fix : ""))
+    .filter(Boolean);
+  const { score, gaps } = computeHealthAndGaps(project, items, decisions, resolvedFixes);
 
   return {
     project,

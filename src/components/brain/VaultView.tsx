@@ -1,14 +1,18 @@
 "use client";
 
 // TAB 1 — Vault & Markdown Editor with live Snip→Action detection
+// v2.1: inbox triage/resolution controls, duplicate-folding ×N badges, and the
+// grounded Ask / Synthesize panel. Captured content is rendered as escaped React
+// text (never dangerouslySetInnerHTML) so pasted markup can't create XSS risk.
 
-import { useMemo, useState } from "react";
-import { Copy, Save, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
+import { BookOpen, Copy, Save, Send, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { analyzeCapture } from "@/lib/brain/analyzer";
 import { routeAiModel } from "@/lib/brain/model-routing";
+import type { AnalysisResult, BrainItem, GroundedAnswer, ModelRoute } from "@/lib/brain/types";
 import { useWorkspace } from "./workspace-store";
-import { itemTypeStyle, shortTime, truncate } from "./ui-shared";
+import { OccurrenceBadge, itemTypeStyle, shortTime, truncate } from "./ui-shared";
 
 const ITEM_TYPES = [
   { value: "note", label: "📝 Markdown Note" },
@@ -20,6 +24,8 @@ const ITEM_TYPES = [
 
 export function VaultView() {
   const details = useWorkspace((s) => s.details);
+  const projects = useWorkspace((s) => s.projects);
+  const selectedId = useWorkspace((s) => s.selectedId);
   const loading = useWorkspace((s) => s.loadingDetails);
   const refreshAll = useWorkspace((s) => s.refreshAll);
   const setTab = useWorkspace((s) => s.setTab);
@@ -31,16 +37,37 @@ export function VaultView() {
   const [windowTitle, setWindowTitle] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Live local intelligence preview (pure functions, no server roundtrip)
-  const live = useMemo(() => {
-    if (!body.trim()) return null;
+  // v2.1 inbox triage state
+  const [triageTarget, setTriageTarget] = useState<Record<string, string>>({});
+  const [triagingId, setTriagingId] = useState<string | null>(null);
+  const [resolveId, setResolveId] = useState<string | null>(null);
+  const [resolveNote, setResolveNote] = useState("");
+
+  // v2.1 grounded Q&A state (ask / synthesize)
+  const [question, setQuestion] = useState("");
+  const [groundedBusy, setGroundedBusy] = useState(false);
+  const [grounded, setGrounded] = useState<GroundedAnswer | null>(null);
+
+  // Live local intelligence preview — route is a pure sync function; analysis is
+  // async (v2 optional LLM enrichment), so it lands in state via useEffect.
+  const [live, setLive] = useState<{ route: ModelRoute; analysis: AnalysisResult } | null>(null);
+  useEffect(() => {
+    if (!body.trim()) {
+      setLive(null);
+      return;
+    }
     const route = routeAiModel({ itemType, rawContent: body, hasImage: itemType === "screenshot" });
-    const analysis = analyzeCapture({
+    let cancelled = false;
+    void analyzeCapture({
       rawContent: body,
       windowTitle: windowTitle || title,
       routedModel: route.targetModel,
+    }).then((analysis) => {
+      if (!cancelled) setLive({ route, analysis });
     });
-    return { route, analysis };
+    return () => {
+      cancelled = true;
+    };
   }, [body, itemType, windowTitle, title]);
 
   const save = async () => {
@@ -62,10 +89,12 @@ export function VaultView() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Capture failed");
-      toast({
-        title: "Captured — Zero-Save",
-        description: data.toastNotification,
-      });
+      if (data.status === "duplicate_merged") {
+        // v2.1: the capture folded into an existing item — say so instead of "captured"
+        toast({ title: "Duplicate folded — no new item", description: data.toastNotification });
+      } else {
+        toast({ title: "Captured — Zero-Save", description: data.toastNotification });
+      }
       setBody("");
       setTitle("");
       setWindowTitle("");
@@ -87,6 +116,83 @@ export function VaultView() {
       toast({ title: "Fix copied to clipboard", description: fix });
     } catch {
       toast({ title: "Clipboard unavailable", description: fix, variant: "destructive" });
+    }
+  };
+
+  // ----------------------------------
+  // v2.1 inbox triage & resolution
+  // ----------------------------------
+  const isInbox = selectedId === "inbox" || details?.project.id === "inbox";
+
+  const triage = async (item: BrainItem) => {
+    const target = triageTarget[item.id];
+    if (!target) {
+      toast({ title: "Pick a project first", description: "Choose the project space this capture belongs to.", variant: "destructive" });
+      return;
+    }
+    setTriagingId(item.id);
+    try {
+      const res = await fetch("/api/triage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ item_id: item.id, project_id: target }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || "Triage failed");
+      toast({
+        title: `Triaged into ${data.project_name}`,
+        description: data.file_moved ? `Vault file moved to ${data.file_path}` : "Item re-pointed in the vault index.",
+      });
+      await refreshAll();
+    } catch (e) {
+      toast({ title: "Triage failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setTriagingId(null);
+    }
+  };
+
+  const resolve = async (item: BrainItem) => {
+    try {
+      const res = await fetch("/api/resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ item_id: item.id, resolution: resolveNote }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || "Resolve failed");
+      toast({ title: "Marked resolved", description: resolveNote.trim() ? resolveNote : "Resolved without a note." });
+      setResolveId(null);
+      setResolveNote("");
+      await refreshAll();
+    } catch (e) {
+      toast({ title: "Resolve failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
+    }
+  };
+
+  // ----------------------------------
+  // v2.1 grounded ask / synthesize
+  // ----------------------------------
+  const runGrounded = async (mode: "ask" | "synthesize") => {
+    if (!question.trim() || groundedBusy) return;
+    setGroundedBusy(true);
+    setGrounded(null);
+    try {
+      const res = await fetch(mode === "synthesize" ? "/api/synthesize" : "/api/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // Inbox has no project id — an empty project_id searches the whole vault
+        body: JSON.stringify({
+          query: question,
+          project_id: isInbox ? "" : details?.project.id ?? "",
+        }),
+      });
+      const data: GroundedAnswer = await res.json();
+      if (!res.ok) throw new Error(data.error || "Grounded query failed");
+      setGrounded(data);
+    } catch (e) {
+      toast({ title: "Grounded query failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setGroundedBusy(false);
     }
   };
 
@@ -112,6 +218,7 @@ export function VaultView() {
           {details?.items.map((item) => {
             const style = itemTypeStyle(item.itemType);
             const Icon = style.icon;
+            const status = typeof item.metadata.triage_status === "string" ? item.metadata.triage_status : "open";
             return (
               <div key={item.id} className="group px-3 py-2.5 transition-colors hover:bg-slate-800/40">
                 <div className="flex items-center gap-2">
@@ -119,6 +226,7 @@ export function VaultView() {
                   <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-200">
                     {item.title}
                   </span>
+                  <OccurrenceBadge metadata={item.metadata} />
                   <span className="shrink-0 text-[10px] text-slate-500">
                     {shortTime(item.capturedAt)}
                   </span>
@@ -130,6 +238,59 @@ export function VaultView() {
                   <div className="mt-1.5 ml-5 inline-flex items-center gap-1 rounded border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5">
                     <Sparkles className="h-3 w-3 text-amber-400" />
                     <code className="text-[10px] text-amber-200">{truncate(item.metadata.fix, 30)}</code>
+                  </div>
+                )}
+
+                {/* v2.1 inbox triage & resolution controls */}
+                {isInbox && (
+                  <div className="mt-2 ml-5 space-y-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={triageTarget[item.id] ?? ""}
+                        onChange={(e) => setTriageTarget((m) => ({ ...m, [item.id]: e.target.value }))}
+                        aria-label={`Triage target for ${item.title}`}
+                        className="min-w-0 flex-1 rounded border border-slate-700 bg-slate-800 px-1.5 py-1 text-[10px] text-slate-200 focus:outline-none"
+                      >
+                        <option value="">Triage to…</option>
+                        {projects.map((p) => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => triage(item)}
+                        disabled={triagingId === item.id}
+                        className="rounded bg-indigo-600/90 px-2 py-1 text-[10px] font-semibold text-white transition-colors hover:bg-indigo-500 disabled:opacity-50"
+                      >
+                        {triagingId === item.id ? "…" : "Triage"}
+                      </button>
+                      <button
+                        onClick={() => setResolveId(resolveId === item.id ? null : item.id)}
+                        className={`rounded border px-2 py-1 text-[10px] font-semibold transition-colors ${
+                          status === "resolved"
+                            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                            : "border-slate-700 bg-slate-800 text-slate-300 hover:text-white"
+                        }`}
+                      >
+                        {status === "resolved" ? "Resolved ✓" : "Resolve"}
+                      </button>
+                    </div>
+                    {resolveId === item.id && (
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          value={resolveNote}
+                          onChange={(e) => setResolveNote(e.target.value)}
+                          placeholder="Resolution note (optional)"
+                          aria-label="Resolution note"
+                          className="min-w-0 flex-1 rounded border border-slate-700 bg-slate-950/70 px-2 py-1 text-[10px] text-slate-200 placeholder-slate-600 focus:border-emerald-500 focus:outline-none"
+                        />
+                        <button
+                          onClick={() => resolve(item)}
+                          className="rounded bg-emerald-600 px-2 py-1 text-[10px] font-semibold text-white transition-colors hover:bg-emerald-500"
+                        >
+                          Confirm
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -263,6 +424,76 @@ export function VaultView() {
             </div>
           </div>
         )}
+
+        {/* v2.1 Grounded Ask / Synthesize — evidence-first Q&A over this project's vault */}
+        <div className="rounded-xl border border-indigo-500/25 bg-indigo-500/5 p-4">
+          <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-indigo-300">
+            <BookOpen className="h-3.5 w-3.5" />
+            Grounded Ask &amp; Wiki Synthesis — answers cite vault evidence only
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && runGrounded("ask")}
+              placeholder="Ask this project's brain… (e.g. 'how did we fix the dotenv error?')"
+              aria-label="Grounded question"
+              className="min-w-0 flex-1 rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs text-slate-200 placeholder-slate-600 focus:border-indigo-500 focus:outline-none"
+            />
+            <button
+              onClick={() => runGrounded("ask")}
+              disabled={groundedBusy || !question.trim()}
+              className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-indigo-500 disabled:opacity-50"
+            >
+              <Send className="h-3 w-3" /> Ask
+            </button>
+            <button
+              onClick={() => runGrounded("synthesize")}
+              disabled={groundedBusy || !question.trim()}
+              className="rounded-lg border border-indigo-500/40 bg-indigo-500/10 px-3 py-2 text-xs font-medium text-indigo-200 transition-colors hover:bg-indigo-500/20 disabled:opacity-50"
+            >
+              Synthesize
+            </button>
+          </div>
+
+          {groundedBusy && <p className="mt-3 text-[11px] text-slate-500">Searching vault evidence…</p>}
+          {grounded && !groundedBusy && (
+            <div className="mt-3 space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
+                    grounded.llm_used
+                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                      : "border-amber-500/30 bg-amber-500/10 text-amber-300"
+                  }`}
+                >
+                  {grounded.llm_used
+                    ? grounded.mode === "synthesize" ? "LLM wiki synthesis" : "LLM-grounded answer"
+                    : "Offline · evidence excerpts only"}
+                </span>
+                <span className="text-[10px] text-slate-500">{grounded.sources.length} source(s)</span>
+              </div>
+              <p className="whitespace-pre-wrap rounded-lg border border-slate-800 bg-slate-950/60 p-3 text-xs leading-relaxed text-slate-200">
+                {grounded.answer}
+              </p>
+              {grounded.sources.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Sources</p>
+                  {grounded.sources.map((s, i) => (
+                    <div key={s.id} className="rounded-lg border border-slate-800 bg-slate-900/50 p-2.5">
+                      <p className="text-[11px] font-semibold text-slate-200">
+                        <span className="text-indigo-300">[{i + 1}]</span> {s.title}
+                        <span className="ml-2 font-normal text-slate-500">{shortTime(s.captured_at)}</span>
+                      </p>
+                      <p className="mt-1 line-clamp-3 text-[11px] leading-relaxed text-slate-400">{s.excerpt}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         <div className="pb-2">
           <button

@@ -13,6 +13,7 @@ interface DialogState {
   decisionOpen: boolean;
   searchOpen: boolean;
   selfTestOpen: boolean;
+  settingsOpen: boolean;
 }
 
 interface WorkspaceState extends DialogState {
@@ -61,6 +62,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   decisionOpen: false,
   searchOpen: false,
   selfTestOpen: false,
+  settingsOpen: false,
 
   bootstrap: async () => {
     try {

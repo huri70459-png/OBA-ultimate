@@ -1,18 +1,22 @@
-// Project Brain OS — Guided Scenario & Chaos Verification Suite (v2)
-// Port of test_harness.py::GuidedTestHarness — 8 real-world scenarios run against the
+// Project Brain OS — Guided Scenario & Chaos Verification Suite (v2.1)
+// Port of test_harness.py::GuidedTestHarness — 10 real-world scenarios run against the
 // live engine, printing plain-English diagnostics with exact file/function pointers
-// when anything ever breaks. Safe to run repeatedly: test artifacts are cleaned up.
+// when anything ever breaks. Safe to run repeatedly: scenario content is nonced so
+// v2.1 duplicate folding never collapses two different runs into one.
 
 import { findCrossProjectSolutions, compressProjectMemory } from "./compressor";
 import { capture } from "./pipeline";
+import { groundedAnswer } from "./grounded";
 import { llmBridge } from "./llm-bridge";
 import {
   buildContextInjectionPayload,
   getAllProjects,
   resolveProjectId,
+  resolveItem,
   searchVault,
   syncMarkdownEditsFromDisk,
   resolveVaultPath,
+  triageItem,
 } from "./store";
 import type { SelfTestCheck } from "./types";
 
@@ -99,7 +103,8 @@ export async function runSelfDiagnostics(): Promise<SelfTestReport> {
     // -----------------------------------------------------------------
     const capChaos = await capture({
       rawContent:
-        "Decision: Use Playwright trace viewer instead of raw screenshots\nReason: Easier DOM replay.",
+        `Decision: Use Playwright trace viewer instead of raw screenshots (rev ${Date.now()})\n` +
+        "Reason: Easier DOM replay.",
       itemType: "note",
       windowTitle: "notes.md",
       activeFilePath: "C:/dev/tier1-control-plane/docs/notes.md",
@@ -150,7 +155,21 @@ export async function runSelfDiagnostics(): Promise<SelfTestReport> {
     // -----------------------------------------------------------------
     // SCENARIO 5: Memory Compression & Work Session Replay
     // -----------------------------------------------------------------
+    // v2.2: self-contained — capture a FRESH dotenv fix (unique per run via the
+    // nonce'd deploy path, so dedup never folds it) before compressing. This keeps
+    // the assertion "summary mentions dotenv" true regardless of unrelated capture
+    // floods pushing older evidence out of the rolling-summary window.
     const musketeersId = await resolveProjectId("Three Musketeers");
+    if (musketeersId) {
+      await capture({
+        rawContent:
+          `Error: Cannot find module 'dotenv'\n` +
+          `    at Function.Module._resolveFilename (/srv/app/deploy-${Date.now()}/gateway.mjs:2:14)`,
+        itemType: "terminal",
+        windowTitle: "Terminal - node gateway.mjs",
+        sourceApp: "SelfTestSuite",
+      });
+    }
     const compRes = musketeersId
       ? await compressProjectMemory(musketeersId)
       : { error: "project missing" };
@@ -233,6 +252,116 @@ export async function runSelfDiagnostics(): Promise<SelfTestReport> {
       `Verified MCP 'get_project_context' resolution by project name${byName === bySlug ? " and slug" : ""}, clean null on unknown identifiers, and graceful error on invalid project context calls.`,
       "Check resolveProjectId() in src/lib/brain/store.ts"
     );
+
+    // -----------------------------------------------------------------
+    // SCENARIO 9: v2.1 Exact Duplicate Folding (36h, project-scoped)
+    // -----------------------------------------------------------------
+    const dedupNonce = Date.now();
+    const dedupBase = `Error: Cannot find module 'dedup-probe-${dedupNonce}'\n  at gateway.mjs:14:2`;
+    const capDup1 = await capture({
+      rawContent: dedupBase,
+      itemType: "terminal",
+      windowTitle: "Terminal - three-musketeers",
+      sourceApp: "GuidedTestHarness",
+    });
+    const capDup2 = await capture({
+      rawContent: dedupBase, // exact repeat -> must fold, not create a new item
+      itemType: "terminal",
+      windowTitle: "Terminal - three-musketeers",
+      sourceApp: "GuidedTestHarness",
+    });
+    // Same canonical content but routed to a DIFFERENT project -> must NOT fold
+    const capDupCross = await capture({
+      rawContent: dedupBase,
+      itemType: "terminal",
+      windowTitle: "Terminal - tier1-control-plane",
+      activeFilePath: "C:/dev/tier1-control-plane/src/probe.mjs",
+      sourceApp: "GuidedTestHarness",
+    });
+    // Whitespace/case variants are the SAME canonical content -> fold again (×3)
+    const capDupFuzzy = await capture({
+      rawContent: `ERROR:   cannot   FIND\nModule 'dedup-probe-${dedupNonce}'\n  AT gateway.mjs:14:2`,
+      itemType: "terminal",
+      windowTitle: "Terminal - three-musketeers",
+      sourceApp: "GuidedTestHarness",
+    });
+    const foldedCount = Number(capDupFuzzy.item.metadata.occurrence_count ?? 1);
+    const dupOk =
+      capDup1.status === "captured_zero_save" &&
+      capDup2.status === "duplicate_merged" &&
+      capDup2.item.id === capDup1.item.id &&
+      foldedCount >= 3 &&
+      capDupFuzzy.item.id === capDup1.item.id &&
+      capDupCross.status === "captured_zero_save" &&
+      capDupCross.item.id !== capDup1.item.id;
+    record(
+      checks,
+      "9. v2.1 Exact Duplicate Folding (36h, Project-Scoped)",
+      dupOk,
+      `Repeat capture folded into '${capDup1.item.title}' (now ${foldedCount} occurrences, last-seen stamped); a case/whitespace variant merged into the SAME item, while the cross-project repeat correctly created a separate capture.`,
+      "Check findRecentDuplicate() / recordDuplicateOccurrence() in src/lib/brain/dedup.ts and the duplicate branch in pipeline.capture()"
+    );
+
+    // -----------------------------------------------------------------
+    // SCENARIO 10: v2.1 Inbox Triage + Resolution + Grounded Ask
+    // -----------------------------------------------------------------
+    const probeNonce = Date.now();
+    const capInbox = await capture({
+      rawContent: `Grocery triage probe ${probeNonce}: buy oat milk and coffee beans`,
+      itemType: "note",
+      windowTitle: "Sticky Notes",
+      sourceApp: "GuidedTestHarness",
+    });
+    const capInbox2 = await capture({
+      rawContent: `Unrelated noise probe ${probeNonce}: old screenshot of a login screen`,
+      itemType: "note",
+      windowTitle: "Sticky Notes",
+      sourceApp: "GuidedTestHarness",
+    });
+    const musketeersForTriage = await resolveProjectId("three-musketeers");
+    let triageOk = false;
+    let triageDetail = "Skipped — inbox capture or project unavailable";
+    let askOk = false;
+    let askDetail = "Skipped — no evidence available";
+    if (capInbox.item.projectId === null && musketeersForTriage) {
+      const triaged = await triageItem(capInbox.item.id, musketeersForTriage);
+      const resolved = await resolveItem(capInbox2.item.id, "Handled manually during cleanup");
+      triageOk =
+        triaged.ok &&
+        triaged.file_moved &&
+        triaged.file_path.startsWith("ProjectBrainVault/Projects/three-musketeers/notes/") &&
+        resolved.ok;
+      triageDetail = triaged.ok
+        ? `Inbox note triaged into [${triaged.project_name}]: vault file moved to '${triaged.file_path}'${resolved.ok ? "; second noise probe resolved with a resolution note" : ""}.`
+        : `Triage failed: ${triaged.error ?? "unknown"}`;
+
+      // Grounded ask over the triaged evidence — offline mode must be honest (excerpts,
+      // not a fabricated answer). Python parity: sources + offline notice, llm_used=false.
+      const ask = await groundedAnswer({
+        projectId: musketeersForTriage,
+        query: "oat milk grocery",
+        mode: "ask",
+      });
+      const miss = await groundedAnswer({
+        projectId: musketeersForTriage,
+        // v2.2: wordless junk (no dictionary tokens) — earlier miss probes contained
+        // real words like "evidence", which hash-embeddings could cosine-match against
+        // vault items sharing that vocabulary, flaking the no-evidence assertion.
+        query: `zzq7x-${probeNonce}-qxn88k`,
+        mode: "ask",
+      });
+      askOk =
+        ask.grounded &&
+        ask.sources.length >= 1 &&
+        // Offline: honest excerpt notice; Live LLM: a real generated answer. Both valid.
+        (ask.llm_used ? ask.answer.trim().length > 20 : ask.answer.includes("Offline mode")) &&
+        miss.grounded === false &&
+        miss.sources.length === 0;
+      askDetail = ask.grounded
+        ? `Grounded ask retrieved ${ask.sources.length} vault excerpt(s); offline mode returned the evidence list instead of a generated answer; garbage query correctly answered 'no supporting evidence'.`
+        : "Grounded ask returned no evidence";
+    }
+    record(checks, "10. v2.1 Inbox Triage, Resolution & Grounded Ask", triageOk && askOk, `${triageDetail} ${askDetail}`, "Check triageItem()/resolveItem() in src/lib/brain/store.ts and groundedAnswer() in src/lib/brain/grounded.ts");
   } catch (e) {
     checks.push({
       name: "Runtime Exception",

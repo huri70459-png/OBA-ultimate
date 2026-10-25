@@ -44,6 +44,27 @@ export function itemTypeStyle(type: string) {
   return ITEM_TYPE_STYLE[type] ?? ITEM_TYPE_STYLE.note;
 }
 
+/** v2.1: how many times this exact capture was observed (duplicate folding counter). */
+export function occurrenceOf(metadata: Record<string, unknown> | undefined | null): number {
+  return Math.max(1, Number(metadata?.occurrence_count ?? 1));
+}
+
+/** ×N chip shown when duplicate captures were folded into an item (v2.1). */
+export function OccurrenceBadge({ metadata }: { metadata?: Record<string, unknown> | null }) {
+  const n = occurrenceOf(metadata);
+  if (n <= 1) return null;
+  return (
+    <span
+      title={`Exact duplicate folding: this capture was observed ${n} times (last: ${
+        typeof metadata?.last_seen_at === "string" ? metadata.last_seen_at.slice(0, 16).replace("T", " ") : "—"
+      })`}
+      className="shrink-0 rounded border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-bold text-sky-300"
+    >
+      ×{n}
+    </span>
+  );
+}
+
 export const RELATION_STYLE: Record<string, { stroke: string; chip: string }> = {
   FIXED_BY: { stroke: "#f59e0b", chip: "text-amber-300 border-amber-500/30 bg-amber-500/10" },
   DECIDED_ON: { stroke: "#10b981", chip: "text-emerald-300 border-emerald-500/30 bg-emerald-500/10" },

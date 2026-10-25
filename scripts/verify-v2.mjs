@@ -10,7 +10,7 @@
  *   E. Two-Way Obsidian Disk Sync: disk edit -> POST /api/sync-disk -> searchable in SQLite
  *   F. Cross-Project Learning: /api/cross-project finds a fix solved in another project
  *   G. Anti-Drift Prompt Pre-Structurer: /api/context?goal= -> 5-section spec under budget
- *   H. /api/self-test: all 8 guided scenarios PASS
+ *   H. /api/self-test: all 10 guided scenarios PASS (8 original + 2 v2.1)
  *   I. /api/decisions auto-compresses Tier-1 memory
  */
 import fs from "fs";
@@ -47,7 +47,7 @@ const absVault = (rel) => path.join(process.cwd(), rel);
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      raw_content: "Error: listen EADDRINUSE: address already in use :::3000\n  at Server.setupListenListen",
+      raw_content: `Error: listen EADDRINUSE: address already in use :::3000\n  at Server.setupListenListen\n[run ${Date.now()}]`,
       item_type: "terminal",
       window_title: "Terminal - project-brain-os",
       source_app: "V2VerifySuite",
@@ -60,7 +60,7 @@ const absVault = (rel) => path.join(process.cwd(), rel);
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      raw_content: "SyntaxError: Unexpected end of JSON input while parsing gateway config",
+      raw_content: `SyntaxError: Unexpected end of JSON input while parsing gateway config [run ${Date.now()}]`,
       item_type: "terminal",
       window_title: "Terminal - three-musketeers",
       source_app: "V2VerifySuite",
@@ -90,7 +90,9 @@ const absVault = (rel) => path.join(process.cwd(), rel);
   check("_project_summary.md regenerated on disk", Boolean(summaryOnDisk), c.summary_file);
   check("_work_replay.md (chronological) regenerated on disk", Boolean(replayOnDisk), c.work_replay_file);
   const replayText = replayOnDisk ? fs.readFileSync(absVault(c.work_replay_file), "utf-8") : "";
-  check("Work replay groups captures by date", replayText.includes("📅"), replayText.split("\n").slice(0, 3).join(" | ").slice(0, 140));
+  check("Work replay regenerated session-based (v2.1 format)",
+    replayText.includes("unique captures /") && replayText.includes("occurrences") && replayText.includes("### Session"),
+    replayText.split("\n").slice(0, 4).join(" | ").slice(0, 160));
 
   // ---- E. Two-Way Obsidian Disk Sync ----
   const token = `DiskEditProbe${Date.now()}`;
@@ -140,15 +142,15 @@ const absVault = (rel) => path.join(process.cwd(), rel);
   check("Spec stays under 2,500-token budget", (cx.token_estimate ?? 99999) < 2500, `${cx.token_estimate} tokens`);
   check("Spec grounded in Tier-1 compressed memory", spec.includes(cx.tier_1_rolling_memory?.slice(0, 40) ?? "___"), cx.tier_1_rolling_memory?.slice(0, 90).replace(/\n/g, " "));
 
-  // ---- H. 8-Scenario Self-Test ----
+  // ---- H. 10-Scenario Self-Test (8 original + 2 v2.1) ----
   const st = await jfetch("/api/self-test");
   const checks = st.data.checks || [];
   const names = checks.map((x) => x.name);
-  check("Self-test runs 8 guided scenarios", checks.length === 8, names.join(" | "));
-  const scenarioNames = ["1. Vault & SQLite", "2. Zero-Save Capture", "3. Chaos Test", "4. Two-Way Obsidian", "5. Memory Compression", "6. Anti-Drift Prompt", "7. Cross-Project", "8. MCP"];
+  check("Self-test runs 10 guided scenarios", checks.length === 10, names.join(" | "));
+  const scenarioNames = ["1. Vault & SQLite", "2. Zero-Save Capture", "3. Chaos Test", "4. Two-Way Obsidian", "5. Memory Compression", "6. Anti-Drift Prompt", "7. Cross-Project", "8. MCP", "9. v2.1 Exact Duplicate Folding", "10. v2.1 Inbox Triage"];
   const allNamed = scenarioNames.every((s) => names.some((n) => n.startsWith(s)));
-  check("All 8 blueprint scenarios present", allNamed, names.join(" | ").slice(0, 220));
-  check("8/8 scenarios PASS", st.data.ok && st.data.passedCount === 8 && checks.every((x) => x.status === "PASS"),
+  check("All 10 scenario families present (incl. v2.1)", allNamed, names.join(" | ").slice(0, 260));
+  check("10/10 scenarios PASS", st.data.ok && st.data.passedCount === 10 && checks.every((x) => x.status === "PASS"),
     checks.map((x) => `${x.name.split(".")[0]}:${x.status}`).join(" "));
 
   // ---- I. Decision auto-compression ----

@@ -1,11 +1,16 @@
 // Project Brain OS — Zero-Save Universal Capture Pipeline
 // Port of capture_pipeline.py::ZeroSaveCapturePipeline
+// v2.1: exact duplicate folding (memory_compressor.find_recent_duplicate) runs after
+// project detection — a repeat capture within the dedup window in the SAME project/
+// inbox folds into the existing item (occurrence_count + 1) instead of creating a row.
+// v2.2: the window is runtime-tunable (DEDUP_WINDOW_HOURS env -> setting -> 36h default).
 
 import { randomUUID } from "crypto";
 import { detectProject, routeAiModel } from "./router";
 import { analyzeCapture, formatHudToast } from "./analyzer";
+import { findRecentDuplicate, recordDuplicateOccurrence } from "./dedup";
 import { addGraphEdge, logDecision, saveItem } from "./store";
-import type { CaptureResult } from "./types";
+import type { BrainDecision, CaptureResult } from "./types";
 
 export async function capture(input: {
   rawContent: string;
@@ -31,6 +36,22 @@ export async function capture(input: {
   // 1. Auto-Detect Project
   const projMatch = await detectProject({ rawContent, windowTitle, activeFilePath, sourceUrl });
   const projectId = projMatch.projectId;
+
+  // 1.5 v2.1 Exact Duplicate Folding — same project/inbox + same type + same canonical
+  // content within the 36-hour window merges into the existing capture. The toast tells
+  // the user the repeat was folded with its new occurrence count (brain_api.py parity).
+  const duplicate = await findRecentDuplicate({ rawContent, itemType, projectId });
+  if (duplicate.item) {
+    const merged = await recordDuplicateOccurrence(duplicate.item.id);
+    return {
+      status: "duplicate_merged",
+      toastNotification: `Duplicate folded into existing capture (${merged.occurrence_count} occurrences) — no new item created.`,
+      item: merged.item,
+      projectMatch: projMatch,
+      modelRoute: routeAiModel({ itemType, rawContent, hasImage: Boolean(assetPath) || itemType === "screenshot" }),
+      decisionLogged: null,
+    };
+  }
 
   // 2. Auto-Route to the right AI Model (Codex vs Vision vs Architect)
   const modelRoute = routeAiModel({
@@ -59,6 +80,9 @@ export async function capture(input: {
       task_mode: modelRoute.taskMode,
       project_confidence: projMatch.confidence,
       routing_reasons: projMatch.reasons,
+      // v2.1: seed the dedup fingerprint so future lookups skip re-hashing every candidate
+      dedup_fingerprint: duplicate.fingerprint,
+      occurrence_count: 1,
       // v2 (llm_bridge parity): persist the full Snip->Action diagnosis
       ...(analysis.actionMetadata.error
         ? { error: analysis.actionMetadata.error, rootCause: analysis.actionMetadata.rootCause ?? "" }
@@ -68,7 +92,7 @@ export async function capture(input: {
   });
 
   // 5. Auto-Populate Decision Graph if a decision was detected
-  let decisionLogged = null;
+  let decisionLogged: BrainDecision | null = null;
   if (analysis.decision && projectId) {
     decisionLogged = await logDecision({
       projectId,

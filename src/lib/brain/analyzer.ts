@@ -103,12 +103,14 @@ export async function analyzeCapture(input: {
   }
 
   // D. Optional live LLM summary upgrade (only when Ollama/Cloud backend is reachable)
+  // v2.2: short 6s cap — capture-path UX must never wait on a slow cloud provider.
   let llmSummary = "";
   if (rawContent.length > 120) {
     llmSummary = await llmBridge.completeText(
       "Summarize this developer capture in 1 concise sentence (< 25 words) focusing on technical facts.",
       rawContent.slice(0, 1500),
-      80
+      80,
+      { timeoutMs: 6_000 }
     );
   }
 

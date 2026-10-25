@@ -98,3 +98,12 @@ model GraphEdge {
 
   @@index([projectId, createdAt])
 }
+
+// v2.2 runtime configuration store: LLM backend overrides (provider, keys, base URLs),
+// tunable dedup window, and the desktop-agent ingest token. Values are plain strings;
+// secrets are masked by the settings API and never returned in plaintext.
+model Setting {
+  key       String   @id
+  value     String   @default("")
+  updatedAt DateTime @updatedAt
+}

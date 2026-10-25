@@ -83,7 +83,8 @@ export interface AnalysisResult {
 }
 
 export interface CaptureResult {
-  status: "captured_zero_save";
+  /** v2.1: "duplicate_merged" folds the capture into an existing item (no new row). */
+  status: "captured_zero_save" | "duplicate_merged";
   toastNotification: string;
   item: BrainItem;
   projectMatch: ProjectMatch;
@@ -126,6 +127,55 @@ export interface CrossProjectSolution {
   captured_at: string;
 }
 
+// ==========================================
+// V2.1 PART A — Deduplication / Inbox Triage / Grounded Q&A
+// ==========================================
+
+/** Result of the v2.1 exact-duplicate lookup (port of memory_compressor.find_recent_duplicate). */
+export interface DuplicateLookupResult {
+  item: BrainItem | null;
+  fingerprint: string;
+}
+
+/** Item state after folding a duplicate capture in (port of record_duplicate_occurrence). */
+export interface DuplicateMergeResult {
+  item: BrainItem;
+  occurrence_count: number;
+  last_seen_at: string;
+}
+
+/** Result of moving an inbox item into a project (port of brain_api.triage_item). */
+export interface TriageResult {
+  ok: boolean;
+  item_id: string;
+  project_id: string;
+  project_name: string;
+  /** Old -> new vault path when the file physically moved on disk. */
+  file_moved: boolean;
+  file_path: string;
+  error?: string;
+}
+
+/** A source excerpt backing a grounded answer (port of brain_api.grounded_answer). */
+export interface GroundedSource {
+  id: string;
+  title: string;
+  project_id: string | null;
+  captured_at: string;
+  /** Capped at 700 chars, taken from structuredSummary or rawContent. */
+  excerpt: string;
+}
+
+export interface GroundedAnswer {
+  answer: string;
+  sources: GroundedSource[];
+  grounded: boolean;
+  mode: "ask" | "synthesize";
+  /** False when no LLM backend answered — the UI then shows excerpts, not a generated answer. */
+  llm_used: boolean;
+  error?: string;
+}
+
 /** Result of the Two-Way Obsidian Disk Sync (port of sync_markdown_edits_from_disk). */
 export interface DiskSyncStats {
   files_checked: number;
@@ -143,6 +193,8 @@ export interface ProjectCompressionReport {
   summary_file: string;
   work_replay_file: string;
   items_compressed: number;
+  /** v2.1: total observed occurrences after exact-duplicate folding (sum of occurrence_count). */
+  occurrences_represented: number;
   llm_digest_used: boolean;
 }
 

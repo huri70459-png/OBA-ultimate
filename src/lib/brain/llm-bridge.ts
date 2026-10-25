@@ -1,47 +1,120 @@
 // Project Brain OS — Hybrid Local/Cloud LLM Router & Anti-Drift Prompt Pre-Structurer
-// Faithful port of llm_bridge.py (Option 1 upgrade). Zero external dependencies:
-// uses global fetch (Node 18+) and never throws — every failure degrades to the
-// built-in Deterministic Offline Synthesizer so the app never blocks on API keys.
+// Port of llm_bridge.py (Option 1 upgrade), extended to v2.2.
 //
-//  1. detectActiveBackend()  — Ollama (http://127.0.0.1:11434) -> OPENAI_API_KEY ->
-//     ANTHROPIC_API_KEY -> GEMINI_API_KEY -> deterministic-offline.
-//  2. completeText()         — live completion via Ollama / OpenAI; "" on any failure
-//     so callers fall back to deterministic synthesis seamlessly.
+// Zero external dependencies: uses global fetch (Node 18+) and never throws — every
+// failure degrades to the built-in Deterministic Offline Synthesizer so the app never
+// blocks on API keys.
+//
+//  1. detectActiveBackend()  — provider override (runtime setting) or the auto chain:
+//     Ollama (http://127.0.0.1:11434) -> OPENAI_API_KEY -> ANTHROPIC_API_KEY ->
+//     GEMINI_API_KEY -> deterministic-offline.
+//  2. completeText()         — LIVE completions for all four providers: Ollama,
+//     OpenAI (chat/completions), Anthropic (v1/messages), Gemini (generateContent).
+//     Returns "" on any failure so callers fall back to deterministic synthesis
+//     seamlessly (never fabricates).
 //  3. rewriteRawPrompt()     — rewrites a raw, unclear thought into a strict 5-section
 //     engineering spec anchored to Tier-1 Rolling Memory, Tier-2 Decision Graph, and
 //     Tier-3 Vault Evidence, with a ~2,500 token budget estimator.
+//  4. probeBackend()         — real connectivity test per provider (used by the
+//     Runtime Settings dialog to "wire a live backend" with immediate feedback).
+//
+// v2.2 runtime configuration: values come from the DB Setting store first, then env
+// vars, then defaults — so a user can paste an OpenAI key in the UI and grounded
+// answers upgrade from excerpts to synthesis without a restart. Base URLs are also
+// overridable (OpenAI-compatible gateways, Azure-style proxies, LM Studio bridges).
 
+import { effectiveSetting, readSettings } from "./settings";
 import type { ContextPayload, LlmBackend, PromptRewriteResult } from "./types";
 
 export const TOKEN_BUDGET = 2500;
 
-interface BridgeOptions {
-  preferLocalOllama?: boolean;
-  ollamaUrl?: string;
-  ollamaModel?: string;
-  timeoutSeconds?: number;
+export const PROVIDERS = [
+  "auto",
+  "ollama",
+  "openai",
+  "anthropic",
+  "gemini",
+  "deterministic-offline",
+] as const;
+export type ProviderChoice = (typeof PROVIDERS)[number];
+
+const DEFAULT_OPENAI_BASE = "https://api.openai.com/v1";
+const DEFAULT_ANTHROPIC_BASE = "https://api.anthropic.com";
+const DEFAULT_GEMINI_BASE = "https://generativelanguage.googleapis.com";
+const DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434";
+
+/** Resolved per-call configuration (env merged with DB settings; DB wins). */
+interface RuntimeLlmConfig {
+  providerOverride: ProviderChoice;
+  ollamaUrl: string;
+  ollamaModel: string;
+  openaiKey: string;
+  anthropicKey: string;
+  geminiKey: string;
+  openaiBase: string;
+  anthropicBase: string;
+  geminiBase: string;
+  /** Explicit seconds from settings/env, or null to use provider defaults. */
+  timeoutSeconds: number | null;
+}
+
+function normalizeBase(url: string): string {
+  return url.replace(/\/+$/, "");
 }
 
 export class HybridLLMBridge {
-  private preferLocalOllama: boolean;
-  private ollamaUrl: string;
-  private ollamaModel: string;
-  private timeoutMs: number;
-  private openaiKey: string;
-  private anthropicKey: string;
-  private geminiKey: string;
-
-  // Small memo so capture-time enrichment does not re-probe Ollama on every call
+  // backendMemo keeps backend detection stable for 30s — but ONLY while the runtime
+  // config is unchanged (see runtimeConfig(): a config change drops this memo so a
+  // freshly saved key/provider takes effect on the very next call, in any route).
   private backendMemo: { backend: LlmBackend; expiresAt: number } | null = null;
+  private lastConfigJson: string | null = null;
 
-  constructor(opts: BridgeOptions = {}) {
-    this.preferLocalOllama = opts.preferLocalOllama ?? true;
-    this.ollamaUrl = (opts.ollamaUrl ?? "http://127.0.0.1:11434").replace(/\/+$/, "");
-    this.ollamaModel = process.env.OLLAMA_MODEL || opts.ollamaModel || "llama3.2";
-    this.timeoutMs = (opts.timeoutSeconds ?? 8) * 1000;
-    this.openaiKey = process.env.OPENAI_API_KEY || "";
-    this.anthropicKey = process.env.ANTHROPIC_API_KEY || "";
-    this.geminiKey = process.env.GEMINI_API_KEY || "";
+  /** v2.2: merge env vars with the runtime settings store (DB settings win).
+   *  Read FRESH on every call (the Setting table is tiny) — memoizing this created
+   *  cross-bundle staleness where a just-saved key was invisible to other routes. */
+  async runtimeConfig(): Promise<RuntimeLlmConfig> {
+    const s = await readSettings();
+    const pick = (key: string, envVal: string, fallback = ""): string =>
+      (s[key as keyof typeof s] || envVal || fallback).trim();
+
+    const rawTimeout = pick("llm_timeout_seconds", process.env.LLM_TIMEOUT_SECONDS || "");
+    const timeoutNum = rawTimeout ? Number(rawTimeout) : NaN;
+
+    const config: RuntimeLlmConfig = {
+      providerOverride: (s.llm_provider as ProviderChoice) || "auto",
+      ollamaUrl: normalizeBase(pick("ollama_url", process.env.OLLAMA_URL || "", DEFAULT_OLLAMA_URL)),
+      ollamaModel: pick("ollama_model", process.env.OLLAMA_MODEL || "", "llama3.2"),
+      openaiKey: pick("openai_api_key", process.env.OPENAI_API_KEY || ""),
+      anthropicKey: pick("anthropic_api_key", process.env.ANTHROPIC_API_KEY || ""),
+      geminiKey: pick("gemini_api_key", process.env.GEMINI_API_KEY || ""),
+      openaiBase: normalizeBase(pick("openai_base_url", process.env.OPENAI_BASE_URL || "", DEFAULT_OPENAI_BASE)),
+      anthropicBase: normalizeBase(pick("anthropic_base_url", process.env.ANTHROPIC_BASE_URL || "", DEFAULT_ANTHROPIC_BASE)),
+      geminiBase: normalizeBase(pick("gemini_base_url", process.env.GEMINI_BASE_URL || "", DEFAULT_GEMINI_BASE)),
+      timeoutSeconds: Number.isFinite(timeoutNum) && timeoutNum >= 3 && timeoutNum <= 120 ? timeoutNum : null,
+    };
+
+    // Config changed (settings write from this or another route bundle) -> the
+    // previously detected backend is no longer trustworthy; force re-detection.
+    const configJson = JSON.stringify(config);
+    if (this.lastConfigJson !== null && this.lastConfigJson !== configJson) {
+      this.backendMemo = null;
+    }
+    this.lastConfigJson = configJson;
+
+    return config;
+  }
+
+  /** v2.2: drop memoized config + backend so new settings take effect immediately. */
+  invalidateRuntimeConfig(): void {
+    this.lastConfigJson = null;
+    this.backendMemo = null;
+  }
+
+  private timeoutMsFor(cfg: RuntimeLlmConfig, provider: string, overrideMs?: number): number {
+    if (overrideMs) return overrideMs;
+    if (cfg.timeoutSeconds) return cfg.timeoutSeconds * 1000;
+    // Ollama answers fast locally; cloud synthesis of ~700 tokens needs more headroom.
+    return provider === "ollama" ? 8_000 : 25_000;
   }
 
   // =========================================================================
@@ -49,16 +122,31 @@ export class HybridLLMBridge {
   // =========================================================================
   async detectActiveBackend(): Promise<LlmBackend> {
     const now = Date.now();
+    // Resolve config FIRST: it clears backendMemo when the config changed, so a
+    // freshly saved provider/key is honored on this very call.
+    const cfg = await this.runtimeConfig();
     if (this.backendMemo && this.backendMemo.expiresAt > now) return this.backendMemo.backend;
-
     let backend: LlmBackend;
-    if (this.preferLocalOllama && (await this.isOllamaAlive())) {
-      backend = { provider: "ollama", model: this.ollamaModel, mode: "local_llm" };
-    } else if (this.openaiKey) {
+
+    if (cfg.providerOverride === "deterministic-offline") {
+      backend = { provider: "deterministic-offline", model: "rule-synthesizer-v2", mode: "offline_fallback" };
+    } else if (cfg.providerOverride === "openai") {
       backend = { provider: "openai", model: "gpt-4o-mini", mode: "cloud_llm" };
-    } else if (this.anthropicKey) {
+    } else if (cfg.providerOverride === "anthropic") {
       backend = { provider: "anthropic", model: "claude-3-5-sonnet-latest", mode: "cloud_llm" };
-    } else if (this.geminiKey) {
+    } else if (cfg.providerOverride === "gemini") {
+      backend = { provider: "gemini", model: "gemini-2.5-flash", mode: "cloud_llm" };
+    } else if (cfg.providerOverride === "ollama") {
+      // Forced local: report ollama regardless of liveness (probe surfaces health);
+      // completeText degrades to "" -> offline synthesis when unreachable.
+      backend = { provider: "ollama", model: cfg.ollamaModel, mode: "local_llm" };
+    } else if (cfg.providerOverride === "auto" && !this.preferLocalOllamaDisabled && (await this.isOllamaAlive(cfg))) {
+      backend = { provider: "ollama", model: cfg.ollamaModel, mode: "local_llm" };
+    } else if (cfg.openaiKey) {
+      backend = { provider: "openai", model: "gpt-4o-mini", mode: "cloud_llm" };
+    } else if (cfg.anthropicKey) {
+      backend = { provider: "anthropic", model: "claude-3-5-sonnet-latest", mode: "cloud_llm" };
+    } else if (cfg.geminiKey) {
       backend = { provider: "gemini", model: "gemini-2.5-flash", mode: "cloud_llm" };
     } else {
       backend = { provider: "deterministic-offline", model: "rule-synthesizer-v2", mode: "offline_fallback" };
@@ -68,9 +156,15 @@ export class HybridLLMBridge {
     return backend;
   }
 
-  private async isOllamaAlive(): Promise<boolean> {
+  // Kept for backward compatibility with tests/config that toggle the auto chain.
+  private get preferLocalOllamaDisabled(): boolean {
+    return process.env.BRAIN_DISABLE_OLLAMA_PROBE === "1";
+  }
+
+  private async isOllamaAlive(cfg?: RuntimeLlmConfig): Promise<boolean> {
     try {
-      const res = await fetch(`${this.ollamaUrl}/api/tags`, {
+      const url = cfg ? cfg.ollamaUrl : normalizeBase(process.env.OLLAMA_URL || DEFAULT_OLLAMA_URL);
+      const res = await fetch(`${url}/api/tags`, {
         method: "GET",
         signal: AbortSignal.timeout(1500),
       });
@@ -83,19 +177,26 @@ export class HybridLLMBridge {
   // =========================================================================
   // 2. LIVE COMPLETION (graceful "" fallback, like llm_bridge.complete_text)
   // =========================================================================
-  async completeText(systemPrompt: string, userPrompt: string, maxTokens = 600): Promise<string> {
+  async completeText(
+    systemPrompt: string,
+    userPrompt: string,
+    maxTokens = 600,
+    opts?: { timeoutMs?: number }
+  ): Promise<string> {
     const backend = await this.detectActiveBackend();
+    const cfg = await this.runtimeConfig();
+    const timeoutMs = this.timeoutMsFor(cfg, backend.provider, opts?.timeoutMs);
     try {
       if (backend.provider === "ollama") {
-        const res = await fetch(`${this.ollamaUrl}/api/generate`, {
+        const res = await fetch(`${cfg.ollamaUrl}/api/generate`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            model: this.ollamaModel,
+            model: cfg.ollamaModel,
             prompt: `System: ${systemPrompt}\n\nUser: ${userPrompt}`,
             stream: false,
           }),
-          signal: AbortSignal.timeout(this.timeoutMs),
+          signal: AbortSignal.timeout(timeoutMs),
         });
         if (!res.ok) return "";
         const body = (await res.json()) as { response?: string };
@@ -103,11 +204,11 @@ export class HybridLLMBridge {
       }
 
       if (backend.provider === "openai") {
-        const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        const res = await fetch(`${cfg.openaiBase}/chat/completions`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${this.openaiKey}`,
+            Authorization: `Bearer ${cfg.openaiKey}`,
           },
           body: JSON.stringify({
             model: backend.model,
@@ -118,23 +219,141 @@ export class HybridLLMBridge {
             max_tokens: maxTokens,
             temperature: 0.2,
           }),
-          signal: AbortSignal.timeout(this.timeoutMs),
+          signal: AbortSignal.timeout(timeoutMs),
         });
         if (!res.ok) return "";
         const body = (await res.json()) as { choices?: { message?: { content?: string } }[] };
         return (body.choices?.[0]?.message?.content ?? "").trim();
       }
+
+      if (backend.provider === "anthropic") {
+        // v2.2: Anthropic Messages API parity (previously detected-but-unwired).
+        const res = await fetch(`${cfg.anthropicBase}/v1/messages`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": cfg.anthropicKey,
+            "anthropic-version": "2023-06-01",
+          },
+          body: JSON.stringify({
+            model: backend.model,
+            max_tokens: maxTokens,
+            system: systemPrompt,
+            messages: [{ role: "user", content: userPrompt }],
+          }),
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+        if (!res.ok) return "";
+        const body = (await res.json()) as { content?: { type: string; text?: string }[] };
+        return (body.content ?? [])
+          .filter((b) => b.type === "text")
+          .map((b) => b.text ?? "")
+          .join("")
+          .trim();
+      }
+
+      if (backend.provider === "gemini") {
+        // v2.2: Gemini generateContent parity (previously detected-but-unwired).
+        const url =
+          `${cfg.geminiBase}/v1beta/models/${encodeURIComponent(backend.model)}:generateContent` +
+          `?key=${encodeURIComponent(cfg.geminiKey)}`;
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+            generationConfig: { temperature: 0.2, maxOutputTokens: maxTokens },
+          }),
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+        if (!res.ok) return "";
+        const body = (await res.json()) as {
+          candidates?: { content?: { parts?: { text?: string }[] } }[];
+        };
+        return (body.candidates?.[0]?.content?.parts ?? [])
+          .map((p) => p.text ?? "")
+          .join("")
+          .trim();
+      }
     } catch {
       // Fall through cleanly to offline synthesis
       return "";
     }
-    // anthropic/gemini keys are detected but completion parity with llm_bridge.py v2
-    // routes them to deterministic synthesis until their providers are wired.
+    // deterministic-offline (or unknown) -> callers synthesize deterministically.
     return "";
   }
 
   // =========================================================================
-  // 3. RAW UNCLEAR PROMPT -> STRUCTURED ANTI-DRIFT SPEC (rewrite_raw_prompt)
+  // 3. v2.2 BACKEND PROBE (real connectivity test for the Settings dialog)
+  // =========================================================================
+  async probeBackend(backend?: LlmBackend): Promise<{
+    provider: string;
+    ok: boolean;
+    detail: string;
+    latency_ms: number;
+  }> {
+    const target = backend ?? (await this.detectActiveBackend());
+    const cfg = await this.runtimeConfig();
+    const started = Date.now();
+    const finish = (ok: boolean, detail: string) => ({
+      provider: target.provider,
+      ok,
+      detail,
+      latency_ms: Date.now() - started,
+    });
+
+    try {
+      if (target.provider === "deterministic-offline") {
+        return finish(true, "Deterministic offline synthesizer is always available (no network).");
+      }
+      if (target.provider === "ollama") {
+        const res = await fetch(`${cfg.ollamaUrl}/api/tags`, { signal: AbortSignal.timeout(4_000) });
+        if (!res.ok) return finish(false, `Ollama responded HTTP ${res.status}`);
+        const body = (await res.json()) as { models?: { name?: string }[] };
+        const models = (body.models ?? []).map((m) => m.name ?? "").filter(Boolean);
+        return finish(true, models.length ? `Ollama alive — models: ${models.slice(0, 5).join(", ")}` : "Ollama alive — no models pulled yet");
+      }
+      if (target.provider === "openai") {
+        if (!cfg.openaiKey) return finish(false, "No OpenAI API key configured");
+        const res = await fetch(`${cfg.openaiBase}/models`, {
+          headers: { Authorization: `Bearer ${cfg.openaiKey}` },
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (!res.ok) return finish(false, `OpenAI HTTP ${res.status}: ${(await res.text()).slice(0, 140)}`);
+        const body = (await res.json()) as { data?: { id?: string }[] };
+        const ids = (body.data ?? []).map((m) => m.id ?? "").filter(Boolean);
+        return finish(true, `Key valid — ${ids.length} models visible (e.g. ${ids.slice(0, 3).join(", ")})`);
+      }
+      if (target.provider === "anthropic") {
+        if (!cfg.anthropicKey) return finish(false, "No Anthropic API key configured");
+        const res = await fetch(`${cfg.anthropicBase}/v1/models`, {
+          headers: { "x-api-key": cfg.anthropicKey, "anthropic-version": "2023-06-01" },
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (!res.ok) return finish(false, `Anthropic HTTP ${res.status}: ${(await res.text()).slice(0, 140)}`);
+        const body = (await res.json()) as { data?: { id?: string }[] };
+        const ids = (body.data ?? []).map((m) => m.id ?? "").filter(Boolean);
+        return finish(true, `Key valid — models: ${ids.slice(0, 4).join(", ") || "listed"}`);
+      }
+      if (target.provider === "gemini") {
+        if (!cfg.geminiKey) return finish(false, "No Gemini API key configured");
+        const res = await fetch(`${cfg.geminiBase}/v1beta/models?key=${encodeURIComponent(cfg.geminiKey)}`, {
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (!res.ok) return finish(false, `Gemini HTTP ${res.status}: ${(await res.text()).slice(0, 140)}`);
+        const body = (await res.json()) as { models?: { name?: string }[] };
+        const names = (body.models ?? []).map((m) => m.name ?? "").filter(Boolean);
+        return finish(true, `Key valid — ${names.length} models visible (e.g. ${names.slice(0, 3).join(", ")})`);
+      }
+      return finish(false, `Unknown provider: ${target.provider}`);
+    } catch (e) {
+      return finish(false, e instanceof Error ? e.message : "probe failed");
+    }
+  }
+
+  // =========================================================================
+  // 4. RAW UNCLEAR PROMPT -> STRUCTURED ANTI-DRIFT SPEC (rewrite_raw_prompt)
   // =========================================================================
   async rewriteRawPrompt(
     rawUserPrompt: string,
@@ -173,12 +392,13 @@ export class HybridLLMBridge {
       if (m && /fix|install|kill-port|add /i.test(m[1])) knownFixes.push(`\`${m[1]}\` (for ${ev.title})`);
     }
 
-    // Optional live LLM polish of the raw goal
+    // Optional live LLM polish of the raw goal (short timeout: capture-path UX)
     let refinedObjective = await this.completeText(
       "Rewrite the user's raw software request into 2-3 crystal-clear technical bullet points. " +
         "Do not invent libraries that violate the project context.",
       `Project: ${project_name}\nContext: ${rollingMemory}\nRaw Request: ${rawUserPrompt}`,
-      160
+      160,
+      { timeoutMs: 6_000 }
     );
 
     if (!refinedObjective) {
@@ -226,5 +446,10 @@ export class HybridLLMBridge {
   }
 }
 
-/** Shared singleton (pipelne + API routes import this). */
+/** Shared singleton (pipeline + API routes import this). */
 export const llmBridge = new HybridLLMBridge();
+
+/** Re-export so the settings API can invalidate the singleton without import churn. */
+export function invalidateLlmRuntimeConfig(): void {
+  llmBridge.invalidateRuntimeConfig();
+}

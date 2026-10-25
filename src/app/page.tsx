@@ -19,6 +19,7 @@ import {
   SearchDialog,
   SelfTestDialog,
 } from "@/components/brain/dialogs";
+import { SettingsDialog } from "@/components/brain/SettingsDialog";
 
 const TABS: { id: WorkspaceTab; label: string; icon: typeof FileText }[] = [
   { id: "vault", label: "Vault & Markdown Editor", icon: FileText },
@@ -134,6 +135,7 @@ export default function BrainWorkspacePage() {
       <DecisionDialog />
       <SearchDialog />
       <SelfTestDialog />
+      <SettingsDialog />
     </div>
   );
 }
