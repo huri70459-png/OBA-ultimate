@@ -21,7 +21,13 @@ export function Sidebar() {
   const healthColor =
     health >= 80 ? "bg-emerald-500" : health >= 60 ? "bg-amber-500" : "bg-rose-500";
   const healthText =
-    health >= 80 ? "text-emerald-400" : health >= 60 ? "text-amber-400" : "text-rose-400";
+    health >= 80 ? "text-emerald-400" : health >= 60 ? "text-amber-500" : "text-rose-400";
+  const gaps = details?.healthGaps ?? [];
+  const severityStyle: Record<string, string> = {
+    high: "text-rose-400 border-rose-500/30 bg-rose-500/10",
+    medium: "text-amber-400 border-amber-500/30 bg-amber-500/10",
+    low: "text-slate-400 border-slate-500/30 bg-slate-500/10",
+  };
 
   return (
     <aside className="w-60 shrink-0 border-r border-slate-800/80 bg-slate-950/60 p-3 hidden md:flex md:flex-col md:justify-between overflow-hidden">
@@ -117,6 +123,30 @@ export function Sidebar() {
               <div className="text-[9px] uppercase tracking-wide text-slate-500">Edges</div>
             </div>
           </div>
+
+          {/* Knowledge gap flags (Memory Compression Daemon) */}
+          {gaps.length > 0 && (
+            <div className="space-y-1 pt-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] uppercase tracking-wider text-slate-500">
+                  Knowledge Gaps
+                </span>
+                <span className="text-[9px] text-slate-600">daemon-flagged</span>
+              </div>
+              {gaps.slice(0, 3).map((g) => (
+                <div
+                  key={g.gap}
+                  title={g.detail}
+                  className={`rounded border px-2 py-1 text-[10px] leading-tight ${severityStyle[g.severity] ?? severityStyle.low}`}
+                >
+                  <span className="font-semibold">{g.gap}</span>
+                </div>
+              ))}
+              {gaps.length > 3 && (
+                <p className="text-[9px] text-slate-500">+{gaps.length - 3} more…</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

@@ -1,8 +1,15 @@
 // Project Brain OS — Store Layer (port of sqlite_store.py)
-// SQLite via Prisma + BM25-like token search (SQLite LIKE fallback) + vault metadata
+// SQLite via Prisma + BM25-like token search + vector (semantic) hybrid search + vault metadata
 
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
+import {
+  cosineSimilarity,
+  decodeVector,
+  embedForStorage,
+  embedText,
+  newVectorId,
+} from "./embeddings";
 import type {
   BrainDecision,
   BrainItem,
@@ -241,7 +248,18 @@ export async function saveItem(input: {
       sourceUrl: input.sourceUrl ?? "",
       metadata: JSON.stringify(metadata),
       capturedAt: now,
+      // Vector sidecar write (sqlite-vec pattern) — every item is semantically indexed
+      vector: {
+        create: {
+          id: newVectorId(),
+          projectId: project?.id ?? null,
+          ...embedForStorage(
+            `${input.title}\n${input.rawContent}\n${input.structuredSummary ?? ""}\n${input.visualDescription ?? ""}`
+          ),
+        },
+      },
     },
+    include: { vector: true },
   });
 
   if (project) {
@@ -329,6 +347,45 @@ export async function getProjectGraph(projectId: string, limit = 100): Promise<G
 }
 
 // ==========================================
+// VECTOR INDEX MAINTENANCE (backfill + invariant)
+// ==========================================
+
+let vectorIndexReady = false;
+
+/**
+ * Backfills embeddings for any item missing its vector sidecar row.
+ * Called lazily before semantic search / daemon cycles; memoized after first success
+ * (saveItem guarantees the invariant for new items).
+ */
+export async function ensureVectorIndex(): Promise<{ backfilled: number }> {
+  if (vectorIndexReady) return { backfilled: 0 };
+  const missing = await db.item.findMany({
+    where: { vector: { is: null } },
+    take: 5000,
+    orderBy: { capturedAt: "asc" },
+  });
+  for (const row of missing) {
+    const item = toItem(row);
+    await db.itemVector.create({
+      data: {
+        id: newVectorId(),
+        itemId: item.id,
+        projectId: item.projectId,
+        ...embedForStorage(
+          `${item.title}\n${item.rawContent}\n${item.structuredSummary}\n${item.visualDescription}`
+        ),
+      },
+    });
+  }
+  vectorIndexReady = true;
+  return { backfilled: missing.length };
+}
+
+export function isVectorIndexReady(): boolean {
+  return vectorIndexReady;
+}
+
+// ==========================================
 // SEARCH (FTS5 BM25 -> token OR match across indexed fields)
 // ==========================================
 
@@ -360,7 +417,7 @@ export async function searchVault(
   });
 
   // BM25-ish ranking: more token hits across fields = better rank, tiebreak by recency
-  const scored = rows.map((row) => {
+  const scored = rows.map((row: ItemRow) => {
     const item = toItem(row);
     const haystack = `${item.title}\n${item.rawContent}\n${item.structuredSummary}\n${item.visualDescription}`.toLowerCase();
     let hits = 0;
@@ -370,6 +427,91 @@ export async function searchVault(
     const ageHours = (Date.now() - new Date(item.capturedAt).getTime()) / 36e5;
     const rank = hits * 10 + Math.max(0, 5 - ageHours / 24);
     return { ...item, rank };
+  });
+
+  scored.sort((a, b) => b.rank - a.rank);
+  return scored.slice(0, limit);
+}
+
+export type SearchMode = "hybrid" | "semantic" | "fts";
+
+export interface SemanticSearchHit extends BrainItem {
+  rank: number;
+  /** Cosine similarity vs the query embedding (0..1). Present on vector-matched hits. */
+  similarity?: number;
+  /** Which ranking channels contributed: "vector" and/or "fts". */
+  modes: string[];
+}
+
+/**
+ * Hybrid semantic search (Sprint 3 upgrade):
+ *  - "semantic": pure cosine similarity over brain-hash-v1 embeddings
+ *  - "fts":      legacy BM25-like token ranking (searchVault)
+ *  - "hybrid":   0.6*vector + 0.25*token-overlap + 0.15*recency (default)
+ */
+export async function searchVaultHybrid(
+  query: string,
+  opts: {
+    projectId?: string | null;
+    limit?: number;
+    mode?: SearchMode;
+  } = {}
+): Promise<SemanticSearchHit[]> {
+  const { projectId = null, limit = 20, mode = "hybrid" } = opts;
+  if (!query.trim()) return [];
+
+  if (mode === "fts") {
+    const fts = await searchVault(query, projectId, limit);
+    return fts.map((r) => ({ ...r, modes: ["fts"] }));
+  }
+
+  await ensureVectorIndex();
+  const cleanTokens = query
+    .split(/\s+/)
+    .map((w) => w.replace(/[^a-zA-Z0-9]/g, ""))
+    .filter((t) => t.length > 1);
+  const queryVec = embedText(query);
+
+  const [vectorRows, tokenHits] = await Promise.all([
+    db.itemVector.findMany({
+      where: projectId ? { projectId } : {},
+      include: { item: true },
+      take: 3000,
+      orderBy: { indexedAt: "desc" },
+    }),
+    cleanTokens.length > 0
+      ? searchVault(query, projectId, limit * 3)
+      : Promise.resolve([]),
+  ]);
+
+  const tokenScore = new Map<string, number>();
+  if (cleanTokens.length > 0) {
+    for (const hit of tokenHits) {
+      const haystack =
+        `${hit.title}\n${hit.rawContent}\n${hit.structuredSummary}\n${hit.visualDescription}`.toLowerCase();
+      let hits = 0;
+      for (const t of cleanTokens) {
+        if (haystack.includes(t.toLowerCase())) hits += 1;
+      }
+      tokenScore.set(hit.id, hits / cleanTokens.length); // 0..1 coverage
+    }
+  }
+
+  const maxAgeHours = 24 * 14;
+  const scored: SemanticSearchHit[] = vectorRows.map((row) => {
+    const item = toItem(row.item);
+    const sim = Math.max(0, cosineSimilarity(queryVec, decodeVector(row.vector)));
+    const tScore = tokenScore.get(item.id) ?? 0;
+    const ageHours = (Date.now() - new Date(item.capturedAt).getTime()) / 36e5;
+    const recency = Math.max(0, 1 - ageHours / maxAgeHours);
+    const rank =
+      mode === "semantic"
+        ? sim
+        : 0.6 * sim + 0.25 * tScore + 0.15 * recency;
+    const modes: string[] = [];
+    if (sim > 0.01) modes.push("vector");
+    if (tScore > 0) modes.push("fts");
+    return { ...item, rank, similarity: sim, modes };
   });
 
   scored.sort((a, b) => b.rank - a.rank);
@@ -407,12 +549,106 @@ export async function getUniversalTimeline(datePrefix?: string | null, limit = 5
 }
 
 // ==========================================
+// KNOWLEDGE HEALTH SCORE + GAP DETECTION (shared by details API & compressor)
+// ==========================================
+
+export interface ComputedHealth {
+  score: number;
+  gaps: { gap: string; detail: string; severity: "high" | "medium" | "low" }[];
+}
+
+/**
+ * Deterministic Knowledge Health scoring + gap detection.
+ * Base: 40 + 20 summary + 20 decisions + min(20, items*5); gaps subtract up to 20.
+ * Blueprint example: "40 screenshots of database errors but no Database Architecture doc" -> flagged.
+ */
+export function computeHealthAndGaps(
+  project: BrainProject,
+  items: BrainItem[],
+  decisions: BrainDecision[]
+): ComputedHealth {
+  const gaps: ComputedHealth["gaps"] = [];
+  let score =
+    40 +
+    (project.rollingSummary ? 20 : 0) +
+    (decisions.length > 0 ? 20 : 0) +
+    Math.min(20, items.length * 5);
+
+  // Gap 1 — unresolved error captures (blueprint: error surge without documented fix)
+  const unresolved = items.filter((it) => {
+    const isError = /error|exception|traceback|failed|cannot find|module not found/i.test(
+      `${it.title} ${it.rawContent}`
+    );
+    if (!isError) return false;
+    // metadata is already parsed into an object by toItem
+    return !it.metadata || !it.metadata.fix;
+  });
+  if (unresolved.length >= 3) {
+    gaps.push({
+      gap: "Unresolved error captures piling up",
+      detail: `${unresolved.length} error captures have no logged fix — log the fix or decision that resolved them`,
+      severity: "high",
+    });
+  }
+
+  // Gap 2 — visual-heavy, text-light memory
+  const shots = items.filter((i) => i.itemType === "screenshot").length;
+  const notes = items.filter((i) => i.itemType === "note").length;
+  if (shots >= 5 && notes === 0) {
+    gaps.push({
+      gap: "Visual-heavy memory without notes",
+      detail: `${shots} screenshots but zero written notes — screenshots are hard to recall without a summary note`,
+      severity: "medium",
+    });
+  }
+
+  // Gap 3 — captures without decisions
+  if (items.length >= 8 && decisions.length === 0) {
+    gaps.push({
+      gap: "Captures without logged decisions",
+      detail: `${items.length} captures yet no architectural decisions — capture choices with 'Decision: ... Reason: ...'`,
+      severity: "medium",
+    });
+  }
+
+  // Gap 4 — stale project memory
+  if (items.length > 0) {
+    const newest = Math.max(...items.map((i) => new Date(i.capturedAt).getTime()));
+    const staleDays = Math.floor((Date.now() - newest) / 864e5);
+    if (staleDays > 14) {
+      gaps.push({
+        gap: "Stale project memory",
+        detail: `No new captures in ${staleDays} days — project knowledge is going stale`,
+        severity: "low",
+      });
+    }
+  }
+
+  // Gap 5 — no compressed memory
+  if (!project.rollingSummary) {
+    gaps.push({
+      gap: "No compressed memory",
+      detail: "Run the Memory Compressor to synthesize Tier-1 rolling memory",
+      severity: "medium",
+    });
+  }
+
+  const penalty = gaps.reduce(
+    (acc, g) => acc + (g.severity === "high" ? 8 : g.severity === "medium" ? 4 : 2),
+    0
+  );
+  score = Math.max(0, Math.min(100, score - Math.min(20, penalty)));
+  return { score, gaps };
+}
+
+// ==========================================
 // PROJECT DETAILS + KNOWLEDGE HEALTH SCORE
 // ==========================================
 
 export async function getProjectDetails(projectId: string): Promise<ProjectDetails | { error: string }> {
-  const project = await getProjectById(projectId);
-  if (!project) return { error: "Project not found" };
+  const raw = await db.project.findUnique({ where: { id: projectId } });
+  if (!raw) return { error: "Project not found" };
+  const project = toProject(raw);
 
   const [itemRows, decisionRows, edges] = await Promise.all([
     db.item.findMany({ where: { projectId }, orderBy: { capturedAt: "desc" }, take: 50 }),
@@ -422,17 +658,13 @@ export async function getProjectDetails(projectId: string): Promise<ProjectDetai
 
   const items = itemRows.map(toItem);
   const decisions = decisionRows.map(toDecision);
-
-  // Live Knowledge Health Score: 40 base + 20 summary + 20 decisions + min(20, items*5)
-  const score =
-    40 +
-    (project.rollingSummary ? 20 : 0) +
-    (decisions.length > 0 ? 20 : 0) +
-    Math.min(20, items.length * 5);
+  const { score, gaps } = computeHealthAndGaps(project, items, decisions);
 
   return {
     project,
-    healthScore: Math.min(100, score),
+    healthScore: score,
+    healthGaps: gaps,
+    lastCompressedAt: raw.lastCompressedAt ? raw.lastCompressedAt.toISOString() : null,
     items,
     decisions,
     graphEdges: edges,

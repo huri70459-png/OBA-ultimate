@@ -15,6 +15,7 @@ const ITEM_TYPES = [
   { value: "screenshot", label: "📸 Screenshot / OCR" },
   { value: "terminal", label: "💻 Terminal Log" },
   { value: "clip", label: "📋 Web Clip" },
+  { value: "session", label: "🧩 Work Session" },
 ];
 
 export function VaultView() {

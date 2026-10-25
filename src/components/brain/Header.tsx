@@ -1,18 +1,35 @@
 "use client";
 
-// Top command bar — brand, universal search, Zero-Save Capture, Self-Test
+// Top command bar — brand, universal search, Zero-Save Capture, Memory Compressor, Self-Test
 
 import { useState } from "react";
-import { Search, Zap, Stethoscope } from "lucide-react";
+import { Search, Zap, Stethoscope, DatabaseZap } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "./workspace-store";
 
 export function Header() {
   const openDialog = useWorkspace((s) => s.openDialog);
   const openSearch = useWorkspace((s) => s.openSearch);
+  const compressMemory = useWorkspace((s) => s.compressMemory);
+  const compressing = useWorkspace((s) => s.compressing);
+  const { toast } = useToast();
   const [query, setQuery] = useState("");
 
   const submit = () => {
     if (query.trim()) openSearch(query.trim());
+  };
+
+  const compress = async () => {
+    const report = await compressMemory();
+    if (!report) {
+      toast({ title: "Compression failed", variant: "destructive" });
+      return;
+    }
+    const gaps = Object.values(report.gapReport || {}).reduce((n, g) => n + g.length, 0);
+    toast({
+      title: "🧠 Memory compression complete",
+      description: `${report.sessionsCreated} session rollup(s) · ${report.summariesUpdated.length} summaries synthesized · ${gaps} gap(s) flagged · ${report.durationMs}ms`,
+    });
   };
 
   return (
@@ -66,6 +83,16 @@ export function Header() {
           <span className="hidden sm:inline">Zero-Save Capture</span>
           <span className="sm:hidden">Capture</span>
           <kbd className="hidden rounded bg-indigo-700 px-1.5 py-0.5 text-[10px] lg:inline">Alt+S</kbd>
+        </button>
+        <button
+          onClick={compress}
+          disabled={compressing}
+          className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-300 transition-colors hover:bg-emerald-500/20 disabled:opacity-50"
+          title="Memory Compression Daemon: roll up work sessions, re-synthesize project summaries, flag knowledge gaps"
+        >
+          <DatabaseZap className={`h-3.5 w-3.5 ${compressing ? "animate-pulse" : ""}`} />
+          <span className="hidden lg:inline">{compressing ? "Compressing…" : "Compress Memory"}</span>
+          <span className="lg:hidden">Compress</span>
         </button>
         <button
           onClick={() => openDialog("selfTestOpen")}

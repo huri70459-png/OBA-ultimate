@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureSeedDataOnce } from "@/lib/brain/seed";
-import { getProjectDetails, toItem } from "@/lib/brain/store";
+import { computeHealthAndGaps, getProjectDetails, toItem } from "@/lib/brain/store";
 import { db } from "@/lib/db";
 import type { BrainProject } from "@/lib/brain/types";
 
@@ -33,9 +33,12 @@ export async function GET(
       take: 50,
     });
     const items = rows.map(toItem);
+    const { score, gaps } = computeHealthAndGaps(INBOX_PROJECT, items, []);
     return NextResponse.json({
       project: INBOX_PROJECT,
-      healthScore: Math.min(100, 40 + items.length * 5),
+      healthScore: score,
+      healthGaps: gaps,
+      lastCompressedAt: null,
       items,
       decisions: [],
       graphEdges: [],

@@ -12,19 +12,23 @@ datasource db {
 }
 
 model Project {
-  id             String   @id
+  id             String    @id
   name           String
-  slug           String   @unique
-  rootPath       String   @default("")
-  keywords       String   @default("[]") // JSON string[]
-  gitRemotes     String   @default("[]") // JSON string[]
-  rollingSummary String   @default("")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @default(now())
+  slug           String    @unique
+  rootPath       String    @default("")
+  keywords       String    @default("[]") // JSON string[]
+  gitRemotes     String    @default("[]") // JSON string[]
+  rollingSummary String    @default("")
+  healthScore    Int? // persisted by Memory Compression Daemon
+  healthGaps     String    @default("[]") // JSON HealthGap[]
+  lastCompressedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @default(now())
 
   items     Item[]
   decisions Decision[]
   edges     GraphEdge[]
+  vectors   ItemVector[]
 }
 
 model Item {
@@ -44,7 +48,25 @@ model Item {
 
   project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
+  vector ItemVector?
+
   @@index([projectId, capturedAt])
+}
+
+// Vector sidecar (sqlite-vec pattern): one embedding per item, stored in the same SQLite db.
+model ItemVector {
+  id        String   @id
+  itemId    String   @unique
+  projectId String?
+  model     String   @default("brain-hash-v1")
+  dim       Int
+  vector    String // base64-encoded Float32Array (L2-normalized)
+  indexedAt DateTime @default(now())
+
+  item    Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
 }
 
 model Decision {

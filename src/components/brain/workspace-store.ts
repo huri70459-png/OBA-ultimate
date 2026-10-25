@@ -3,7 +3,7 @@
 // Workspace state — zustand store for Project Brain OS UI
 
 import { create } from "zustand";
-import type { BrainProject, ProjectDetails } from "@/lib/brain/types";
+import type { BrainProject, CompressionReport, ProjectDetails } from "@/lib/brain/types";
 
 export type WorkspaceTab = "vault" | "timeline" | "graph" | "context";
 
@@ -22,6 +22,7 @@ interface WorkspaceState extends DialogState {
   selectedId: string | null; // project id or "inbox"
   details: ProjectDetails | null;
   loadingDetails: boolean;
+  compressing: boolean;
   tab: WorkspaceTab;
   searchSeed: string;
 
@@ -30,6 +31,7 @@ interface WorkspaceState extends DialogState {
   selectProject: (id: string) => void;
   loadDetails: (id?: string) => Promise<void>;
   refreshAll: () => Promise<void>;
+  compressMemory: () => Promise<CompressionReport | null>;
   setTab: (t: WorkspaceTab) => void;
   openDialog: (d: keyof DialogState) => void;
   closeDialog: (d: keyof DialogState) => void;
@@ -49,6 +51,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   selectedId: null,
   details: null,
   loadingDetails: false,
+  compressing: false,
   tab: "vault",
   searchSeed: "",
   captureOpen: false,
@@ -102,6 +105,22 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   refreshAll: async () => {
     await get().loadProjects();
     await get().loadDetails();
+  },
+
+  compressMemory: async () => {
+    if (get().compressing) return null;
+    set({ compressing: true });
+    try {
+      const res = await fetch("/api/daemon", { method: "POST" });
+      if (!res.ok) throw new Error(`daemon -> ${res.status}`);
+      const report = (await res.json()) as CompressionReport;
+      await get().refreshAll();
+      return report;
+    } catch {
+      return null;
+    } finally {
+      set({ compressing: false });
+    }
   },
 
   setTab: (tab) => set({ tab }),

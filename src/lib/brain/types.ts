@@ -128,10 +128,37 @@ export interface SelfTestCheck {
   detail: string;
 }
 
+export interface HealthGap {
+  gap: string;
+  detail: string;
+  severity: "high" | "medium" | "low";
+}
+
 export interface ProjectDetails {
   project: BrainProject;
   healthScore: number;
+  healthGaps: HealthGap[];
+  lastCompressedAt: string | null;
   items: BrainItem[];
   decisions: BrainDecision[];
   graphEdges: GraphEdge[];
+}
+
+export interface SessionReportEntry {
+  projectId: string | null;
+  projectName: string;
+  title: string;
+  members: number;
+}
+
+export interface CompressionReport {
+  ranAt: string;
+  durationMs: number;
+  trigger: "manual" | "auto" | "self-test";
+  sessionsCreated: number;
+  sessionDetails: SessionReportEntry[];
+  summariesUpdated: string[];
+  gapReport: Record<string, HealthGap[]>;
+  vectorsBackfilled: number;
+  skipped?: string;
 }

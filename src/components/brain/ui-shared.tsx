@@ -2,7 +2,7 @@
 
 // Shared UI atoms for the Brain workspace
 
-import { Brain, Camera, Clipboard, FileText, Terminal } from "lucide-react";
+import { Brain, Camera, Clipboard, FileText, Layers, Terminal } from "lucide-react";
 
 export const ITEM_TYPE_STYLE: Record<
   string,
@@ -31,6 +31,12 @@ export const ITEM_TYPE_STYLE: Record<
     icon: Clipboard,
     badge: "bg-amber-500/10 text-amber-300 border-amber-500/25",
     dot: "bg-amber-400",
+  },
+  session: {
+    label: "Work Session (Compressed)",
+    icon: Layers,
+    badge: "bg-emerald-500/10 text-emerald-300 border-emerald-500/25",
+    dot: "bg-emerald-400",
   },
 };
 
