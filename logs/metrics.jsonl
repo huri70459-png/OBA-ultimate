@@ -556,3 +556,8 @@
 {"ts":"2026-10-26T02:35:53.668Z","type":"web_vital","name":"CLS","value":0,"rating":"good","path":"/"}
 {"ts":"2026-10-26T02:35:55.848Z","type":"web_vital","name":"TTFB","value":830,"rating":"needs-improv","path":"/"}
 {"ts":"2026-10-26T02:35:57.861Z","type":"api_timing","route":"GET /api/projects/proj_4f8c3fee53","ms":1716,"status":200}
+{"ts":"2026-10-26T03:46:32.889Z","type":"web_vital","name":"FCP","value":1868,"rating":"needs-improv","path":"/"}
+{"ts":"2026-10-26T03:46:32.954Z","type":"web_vital","name":"TTFB","value":1163,"rating":"needs-improv","path":"/"}
+{"ts":"2026-10-26T03:46:34.719Z","type":"api_timing","route":"GET /api/projects/proj_4f8c3fee53","ms":1516,"status":200}
+{"ts":"2026-10-26T03:49:51.441Z","type":"web_vital","name":"LCP","value":1868,"rating":"good","path":"/"}
+{"ts":"2026-10-26T03:49:51.465Z","type":"web_vital","name":"CLS","value":1,"rating":"poor","path":"/"}

@@ -1,0 +1,1068 @@
+     1→// Project Brain OS — Store Layer (port of sqlite_store.py)
+     2→// SQLite via Prisma + BM25-like token search + vector (semantic) hybrid search
+     3→// + REAL on-disk Obsidian-style vault (v2: two-way markdown disk sync)
+     4→
+     5→import { randomUUID } from "crypto";
+     6→import { mkdir, readFile, rename, writeFile } from "fs/promises";
+     7→import path from "path";
+     8→import { db } from "@/lib/db";
+     9→import {
+    10→  cosineSimilarity,
+    11→  decodeVector,
+    12→  embedForStorage,
+    13→  embedText,
+    14→  newVectorId,
+    15→} from "./embeddings";
+    16→import type {
+    17→  BrainDecision,
+    18→  BrainItem,
+    19→  BrainProject,
+    20→  ContextPayload,
+    21→  DiskSyncStats,
+    22→  GraphEdge,
+    23→  ProjectDetails,
+    24→  TimelineEntry,
+    25→  TriageResult,
+    26→} from "./types";
+    27→
+    28→interface ProjectRow {
+    29→  id: string;
+    30→  name: string;
+    31→  slug: string;
+    32→  rootPath: string;
+    33→  keywords: string;
+    34→  gitRemotes: string;
+    35→  rollingSummary: string;
+    36→  createdAt: Date;
+    37→  updatedAt: Date;
+    38→};
+    39→
+    40→type ItemRow = Record<string, unknown> & {
+    41→  metadata?: string | null;
+    42→  capturedAt: Date;
+    43→};
+    44→
+    45→interface DecisionRow {
+    46→  id: string;
+    47→  projectId: string;
+    48→  title: string;
+    49→  decision: string;
+    50→  alternatives: string;
+    51→  reasoning: string;
+    52→  outcome: string;
+    53→  sourceItemId: string | null;
+    54→  decidedAt: Date;
+    55→};
+    56→
+    57→// ==========================================
+    58→// REAL DISK VAULT (v2 Two-Way Obsidian Sync)
+    59→// Files live at <cwd>/ProjectBrainVault — the same layout as sqlite_store.py.
+    60→// Every write is best-effort: a disk failure never breaks capture/search.
+    61→// ==========================================
+    62→
+    63→export function vaultRoot(): string {
+    64→  return path.join(process.cwd(), "ProjectBrainVault");
+    65→}
+    66→
+    67→/** Resolves a stored relative filePath ("ProjectBrainVault/...") to an absolute disk path. */
+    68→export function resolveVaultPath(filePath: string): string {
+    69→  return path.isAbsolute(filePath) ? filePath : path.join(process.cwd(), filePath);
+    70→}
+    71→
+    72→function frontmatterBlock(input: {
+    73→  id: string;
+    74→  type: string;
+    75→  projectName: string;
+    76→  sourceApp: string;
+    77→  sourceUrl: string;
+    78→  capturedAt: string;
+    79→}): string {
+    80→  return (
+    81→    `---\n` +
+    82→    `id: ${input.id}\n` +
+    83→    `type: ${input.type}\n` +
+    84→    `project: ${input.projectName}\n` +
+    85→    `source_app: ${input.sourceApp}\n` +
+    86→    `source_url: ${input.sourceUrl}\n` +
+    87→    `captured_at: ${input.capturedAt}\n` +
+    88→    `---\n\n`
+    89→  );
+    90→}
+    91→
+    92→/** Builds the Obsidian-compatible .md body (YAML frontmatter + "## Content" marker). */
+    93→export function buildItemMarkdown(input: {
+    94→  id: string;
+    95→  itemType: string;
+    96→  projectName: string;
+    97→  sourceApp: string;
+    98→  sourceUrl: string;
+    99→  capturedAt: string;
+   100→  title: string;
+   101→  structuredSummary?: string;
+   102→  visualDescription?: string;
+   103→  suggestedFix?: string;
+   104→  rawContent: string;
+   105→}): string {
+   106→  let body = `# ${input.title}\n\n`;
+   107→  if (input.structuredSummary) body += `> **AI Summary:** ${input.structuredSummary}\n\n`;
+   108→  if (input.visualDescription) body += `> **Visual Context:** ${input.visualDescription}\n\n`;
+   109→  if (input.suggestedFix) body += `### Suggested Fix\n\`\`\`bash\n${input.suggestedFix}\n\`\`\`\n\n`;
+   110→  body += `## Content\n${input.rawContent}\n`;
+   111→  return frontmatterBlock({
+   112→    id: input.id,
+   113→    type: input.itemType,
+   114→    projectName: input.projectName,
+   115→    sourceApp: input.sourceApp,
+   116→    sourceUrl: input.sourceUrl,
+   117→    capturedAt: input.capturedAt,
+   118→  }) + body;
+   119→}
+   120→
+   121→/** Writes a file inside the vault (creates parent dirs); returns the relative path on success. */
+   122→export async function writeVaultFile(relativePath: string, content: string): Promise<string | null> {
+   123→  try {
+   124→    const abs = resolveVaultPath(relativePath);
+   125→    await mkdir(path.dirname(abs), { recursive: true });
+   126→    await writeFile(abs, content, "utf-8");
+   127→    return relativePath;
+   128→  } catch {
+   129→    return null; // never let disk failures break the engine
+   130→  }
+   131→}
+   132→
+   133→export function slugify(text: string): string {
+   134→  const slug = text
+   135→    .replace(/[^a-zA-Z0-9\s-]/g, "")
+   136→    .trim()
+   137→    .toLowerCase()
+   138→    .replace(/[\s-]+/g, "-");
+   139→  return slug || "untitled";
+   140→}
+   141→
+   142→export function toProject(row: ProjectRow): BrainProject {
+   143→  return {
+   144→    id: row.id,
+   145→    name: row.name,
+   146→    slug: row.slug,
+   147→    rootPath: row.rootPath ?? "",
+   148→    keywords: safeParseArray(row.keywords),
+   149→    gitRemotes: safeParseArray(row.gitRemotes),
+   150→    rollingSummary: row.rollingSummary ?? "",
+   151→    createdAt: row.createdAt.toISOString(),
+   152→    updatedAt: row.updatedAt.toISOString(),
+   153→  };
+   154→}
+   155→
+   156→export function toItem(row: ItemRow): BrainItem {
+   157→  return {
+   158→    id: row.id as string,
+   159→    projectId: (row.projectId as string | null) ?? null,
+   160→    itemType: row.itemType as string,
+   161→    title: row.title as string,
+   162→    rawContent: row.rawContent as string,
+   163→    structuredSummary: (row.structuredSummary as string) ?? "",
+   164→    visualDescription: (row.visualDescription as string) ?? "",
+   165→    filePath: (row.filePath as string) ?? "",
+   166→    assetPath: (row.assetPath as string) ?? "",
+   167→    sourceApp: (row.sourceApp as string) ?? "",
+   168→    sourceUrl: (row.sourceUrl as string) ?? "",
+   169→    metadata: safeParseObject((row.metadata as string) || "{}"),
+   170→    capturedAt: new Date(row.capturedAt).toISOString(),
+   171→  };
+   172→}
+   173→
+   174→export function toDecision(row: DecisionRow): BrainDecision {
+   175→  return {
+   176→    id: row.id,
+   177→    projectId: row.projectId,
+   178→    title: row.title,
+   179→    decision: row.decision,
+   180→    alternatives: safeParseArray(row.alternatives),
+   181→    reasoning: row.reasoning,
+   182→    outcome: row.outcome,
+   183→    sourceItemId: row.sourceItemId,
+   184→    decidedAt: row.decidedAt.toISOString(),
+   185→  };
+   186→}
+   187→
+   188→function safeParseArray(json: string | null | undefined): string[] {
+   189→  try {
+   190→    const parsed = JSON.parse(json || "[]");
+   191→    return Array.isArray(parsed) ? parsed.map(String) : [];
+   192→  } catch {
+   193→    return [];
+   194→  }
+   195→}
+   196→
+   197→function safeParseObject(json: string): Record<string, unknown> {
+   198→  try {
+   199→    const parsed = JSON.parse(json);
+   200→    return parsed && typeof parsed === "object" ? parsed : {};
+   201→  } catch {
+   202→    return {};
+   203→  }
+   204→}
+   205→
+   206→// ==========================================
+   207→// PROJECT MANAGEMENT
+   208→// ==========================================
+   209→
+   210→export async function upsertProject(input: {
+   211→  name: string;
+   212→  rootPath?: string;
+   213→  keywords?: string[];
+   214→  gitRemotes?: string[];
+   215→  rollingSummary?: string;
+   216→}): Promise<BrainProject> {
+   217→  const slug = slugify(input.name);
+   218→  const keywords = input.keywords ?? [];
+   219→  const gitRemotes = input.gitRemotes ?? [];
+   220→
+   221→  const existing = await db.project.findUnique({ where: { slug } });
+   222→  let project: BrainProject;
+   223→
+   224→  if (existing) {
+   225→    const updated = await db.project.update({
+   226→      where: { id: existing.id },
+   227→      data: {
+   228→        name: input.name,
+   229→        rootPath: input.rootPath ?? existing.rootPath,
+   230→        keywords: JSON.stringify(keywords),
+   231→        gitRemotes: JSON.stringify(gitRemotes),
+   232→        rollingSummary: input.rollingSummary || existing.rollingSummary,
+   233→        updatedAt: new Date(),
+   234→      },
+   235→    });
+   236→    project = toProject(updated);
+   237→  } else {
+   238→    const created = await db.project.create({
+   239→      data: {
+   240→        id: `proj_${randomUUID().replace(/-/g, "").slice(0, 10)}`,
+   241→        name: input.name,
+   242→        slug,
+   243→        rootPath: input.rootPath ?? "",
+   244→        keywords: JSON.stringify(keywords),
+   245→        gitRemotes: JSON.stringify(gitRemotes),
+   246→        rollingSummary: input.rollingSummary ?? "",
+   247→      },
+   248→    });
+   249→    project = toProject(created);
+   250→  }
+   251→
+   252→  // v2: maintain the human-readable _project_summary.md on disk (sqlite_store.py parity:
+   253→  // writes when a summary exists or the file is missing)
+   254→  const effectiveSummary = project.rollingSummary;
+   255→  const summaryRelPath = `ProjectBrainVault/Projects/${project.slug}/_project_summary.md`;
+   256→  const summaryAbs = resolveVaultPath(summaryRelPath);
+   257→  let summaryExists = true;
+   258→  try {
+   259→    await readFile(summaryAbs, "utf-8");
+   260→  } catch {
+   261→    summaryExists = false;
+   262→  }
+   263→  if (effectiveSummary || !summaryExists) {
+   264→    const now = new Date().toISOString();
+   265→    await writeVaultFile(
+   266→      summaryRelPath,
+   267→      `# ${project.name} — Project Brain Summary\n\n` +
+   268→        `**Root Path:** \`${project.rootPath}\`\n` +
+   269→        `**Keywords:** ${project.keywords.join(", ")}\n` +
+   270→        `**Last Updated:** ${now}\n\n` +
+   271→        `## Rolling Memory\n${effectiveSummary || "No summary compressed yet."}\n`
+   272→    );
+   273→  }
+   274→
+   275→  return project;
+   276→}
+   277→
+   278→export async function getProjectById(id: string): Promise<BrainProject | null> {
+   279→  const row = await db.project.findUnique({ where: { id } });
+   280→  return row ? toProject(row) : null;
+   281→}
+   282→
+   283→export async function getAllProjects(): Promise<BrainProject[]> {
+   284→  const rows = await db.project.findMany({ orderBy: { updatedAt: "desc" } });
+   285→  return rows.map(toProject);
+   286→}
+   287→
+   288→/** Resolves proj_xxx id, slug, or display name -> project id (port of mcp resolve_project_id). */
+   289→export async function resolveProjectId(identifier: string): Promise<string | null> {
+   290→  if (!identifier) return null;
+   291→  const projects = await getAllProjects();
+   292→  for (const p of projects) {
+   293→    if (p.id === identifier || p.slug === identifier || p.name === identifier) return p.id;
+   294→  }
+   295→  const lower = identifier.toLowerCase();
+   296→  for (const p of projects) {
+   297→    if (p.name.toLowerCase() === lower || p.slug === lower) return p.id;
+   298→  }
+   299→  return null;
+   300→}
+   301→
+   302→// ==========================================
+   303→// ZERO-SAVE ITEM CAPTURE (real Vault .md file on disk, Obsidian-compatible)
+   304→// ==========================================
+   305→
+   306→function vaultFilePath(project: BrainProject | null, itemType: string, title: string, now: Date): string {
+   307→  const stamp = `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, "0")}${String(
+   308→    now.getUTCDate()
+   309→  ).padStart(2, "0")}_${String(now.getUTCHours()).padStart(2, "0")}${String(now.getUTCMinutes()).padStart(
+   310→    2,
+   311→    "0"
+   312→  )}${String(now.getUTCSeconds()).padStart(2, "0")}`;
+   313→  const fileSlug = slugify(title).slice(0, 50);
+   314→  const filename = `${stamp}_${fileSlug}.md`;
+   315→  if (project) {
+   316→    const subfolder = ["screenshot", "clip", "terminal"].includes(itemType) ? "captures" : "notes";
+   317→    return `ProjectBrainVault/Projects/${project.slug}/${subfolder}/${filename}`;
+   318→  }
+   319→  return `ProjectBrainVault/Inbox/${filename}`;
+   320→}
+   321→
+   322→export async function saveItem(input: {
+   323→  title: string;
+   324→  rawContent: string;
+   325→  itemType?: string;
+   326→  projectId?: string | null;
+   327→  structuredSummary?: string;
+   328→  visualDescription?: string;
+   329→  assetPath?: string;
+   330→  sourceApp?: string;
+   331→  sourceUrl?: string;
+   332→  metadata?: Record<string, unknown>;
+   333→}): Promise<BrainItem> {
+   334→  const itemId = `item_${randomUUID().replace(/-/g, "").slice(0, 12)}`;
+   335→  const now = new Date();
+   336→  const itemType = input.itemType || "note";
+   337→  const metadata = input.metadata ?? {};
+   338→  const project = input.projectId ? await getProjectById(input.projectId) : null;
+   339→
+   340→  const created = await db.item.create({
+   341→    data: {
+   342→      id: itemId,
+   343→      projectId: project?.id ?? null,
+   344→      itemType,
+   345→      title: input.title,
+   346→      rawContent: input.rawContent,
+   347→      structuredSummary: input.structuredSummary ?? "",
+   348→      visualDescription: input.visualDescription ?? "",
+   349→      filePath: vaultFilePath(project, itemType, input.title, now),
+   350→      assetPath: input.assetPath ?? "",
+   351→      sourceApp: input.sourceApp ?? "",
+   352→      sourceUrl: input.sourceUrl ?? "",
+   353→      metadata: JSON.stringify(metadata),
+   354→      capturedAt: now,
+   355→      // Vector sidecar write (sqlite-vec pattern) — every item is semantically indexed
+   356→      vector: {
+   357→        create: {
+   358→          id: newVectorId(),
+   359→          projectId: project?.id ?? null,
+   360→          ...embedForStorage(
+   361→            `${input.title}\n${input.rawContent}\n${input.structuredSummary ?? ""}\n${input.visualDescription ?? ""}`
+   362→          ),
+   363→        },
+   364→      },
+   365→    },
+   366→    include: { vector: true },
+   367→  });
+   368→
+   369→  if (project) {
+   370→    await db.project.update({ where: { id: project.id }, data: { updatedAt: now } });
+   371→  }
+   372→
+   373→  // v2: write the real Obsidian-compatible .md file to disk (best-effort, sqlite_store parity)
+   374→  await writeVaultFile(
+   375→    created.filePath,
+   376→    buildItemMarkdown({
+   377→      id: created.id,
+   378→      itemType: created.itemType,
+   379→      projectName: project?.name ?? "Inbox",
+   380→      sourceApp: created.sourceApp,
+   381→      sourceUrl: created.sourceUrl,
+   382→      capturedAt: created.capturedAt.toISOString(),
+   383→      title: created.title,
+   384→      structuredSummary: created.structuredSummary,
+   385→      visualDescription: created.visualDescription,
+   386→      suggestedFix: typeof metadata.fix === "string" ? metadata.fix : undefined,
+   387→      rawContent: created.rawContent,
+   388→    })
+   389→  );
+   390→
+   391→  return toItem(created);
+   392→}
+   393→
+   394→// ==========================================
+   395→// v2.1 INBOX TRIAGE & RESOLUTION (port of brain_api.list_inbox / triage_item / resolve_item)
+   396→// Triage physically MOVES the vault .md file from ProjectBrainVault/Inbox/ into the
+   397→// target project's notes/ or captures/ folder, re-points SQLite + the vector sidecar,
+   398→// and stamps triage state into the item metadata. Resolution records an optional note.
+   399→// ==========================================
+   400→
+   401→export async function listInbox(limit = 80): Promise<BrainItem[]> {
+   402→  const rows = await db.item.findMany({
+   403→    where: { projectId: null },
+   404→    orderBy: { capturedAt: "desc" },
+   405→    take: Math.max(1, Math.min(Math.floor(limit) || 80, 200)),
+   406→  });
+   407→  return rows.map((r) => toItem({ ...r, metadata: r.metadata }));
+   408→}
+   409→
+   410→export async function triageItem(itemId: string, projectId: string): Promise<TriageResult> {
+   411→  const row = await db.item.findUnique({ where: { id: itemId } });
+   412→  if (!row) return { ok: false, item_id: itemId, project_id: projectId, project_name: "", file_moved: false, file_path: "", error: "Item not found" };
+   413→  const prow = await db.project.findUnique({ where: { id: projectId } });
+   414→  if (!prow) return { ok: false, item_id: itemId, project_id: projectId, project_name: "", file_moved: false, file_path: "", error: "Project not found" };
+   415→  if (row.projectId === projectId) {
+   416→    return { ok: false, item_id: itemId, project_id: projectId, project_name: prow.name, file_moved: false, file_path: row.filePath, error: "Item already belongs to this project" };
+   417→  }
+   418→
+   419→  const item = toItem({ ...row, metadata: row.metadata });
+   420→  const subfolder = ["screenshot", "clip", "terminal"].includes(item.itemType) ? "captures" : "notes";
+   421→  const destDir = path.join(vaultRoot(), "Projects", prow.slug, subfolder);
+   422→  let newPath = item.filePath; // fallback when there is no disk file to move
+   423→  let fileMoved = false;
+   424→
+   425→  try {
+   426→    await mkdir(destDir, { recursive: true });
+   427→    const oldAbs = resolveVaultPath(item.filePath);
+   428→    let candidate = path.join(destDir, path.basename(item.filePath || `${item.id}.md`));
+   429→    // Avoid clobbering an existing file with the same name (36h dedup makes this rare)
+   430→    try {
+   431→      await readFile(candidate, "utf-8");
+   432→      candidate = path.join(destDir, `${item.id}_${path.basename(item.filePath || "capture.md")}`);
+   433→    } catch {
+   434→      /* name is free */
+   435→    }
+   436→    try {
+   437→      await rename(oldAbs, candidate);
+   438→      fileMoved = true;
+   439→      newPath = path.relative(process.cwd(), candidate).split(path.sep).join("/");
+   440→    } catch {
+   441→      fileMoved = false; // source file missing — keep path as-is
+   442→    }
+   443→  } catch {
+   444→    fileMoved = false; // disk failure never breaks triage
+   445→  }
+   446→
+   447→  const metadata = { ...item.metadata };
+   448→  metadata.triage_status = "triaged";
+   449→  metadata.triaged_at = new Date().toISOString();
+   450→  metadata.triaged_to = prow.name;
+   451→
+   452→  const now = new Date();
+   453→  await db.item.update({
+   454→    where: { id: itemId },
+   455→    data: {
+   456→      projectId: prow.id,
+   457→      filePath: newPath,
+   458→      metadata: JSON.stringify(metadata),
+   459→    },
+   460→  });
+   461→  await db.project.update({ where: { id: prow.id }, data: { updatedAt: now } });
+   462→
+   463→  // The vector sidecar carries projectId for scoped semantic search — re-point it
+   464→  await db.itemVector.updateMany({ where: { itemId }, data: { projectId: prow.id } });
+   465→
+   466→  return {
+   467→    ok: true,
+   468→    item_id: itemId,
+   469→    project_id: prow.id,
+   470→    project_name: prow.name,
+   471→    file_moved: fileMoved,
+   472→    file_path: newPath,
+   473→  };
+   474→}
+   475→
+   476→export async function resolveItem(
+   477→  itemId: string,
+   478→  resolution: string
+   479→): Promise<{ ok: boolean; item_id: string; triage_status: string; error?: string }> {
+   480→  const row = await db.item.findUnique({ where: { id: itemId } });
+   481→  if (!row) return { ok: false, item_id: itemId, triage_status: "", error: "Item not found" };
+   482→
+   483→  const metadata = toItem({ ...row, metadata: row.metadata }).metadata;
+   484→  metadata.triage_status = "resolved";
+   485→  metadata.resolution = resolution.trim();
+   486→  metadata.resolved_at = new Date().toISOString();
+   487→
+   488→  await db.item.update({ where: { id: itemId }, data: { metadata: JSON.stringify(metadata) } });
+   489→  return { ok: true, item_id: itemId, triage_status: "resolved" };
+   490→}
+   491→
+   492→// ==========================================
+   493→// TWO-WAY OBSIDIAN DISK SYNC (v2, port of memory_compressor.sync_markdown_edits_from_disk)
+   494→// If the user edited a tracked .md file directly on disk (Obsidian / VS Code),
+   495→// sync the new content back into SQLite and re-embed the semantic vector.
+   496→// ==========================================
+   497→
+   498→export async function syncMarkdownEditsFromDisk(): Promise<DiskSyncStats> {
+   499→  const stats: DiskSyncStats = { files_checked: 0, sqlite_records_updated: 0, vectors_resynced: 0 };
+   500→
+   501→  const rows = await db.item.findMany({
+   502→    where: { filePath: { not: "" } },
+   503→    select: {
+   504→      id: true,
+   505→      title: true,
+   506→      rawContent: true,
+   507→      filePath: true,
+   508→      structuredSummary: true,
+   509→      visualDescription: true,
+   510→      projectId: true,
+   511→    },
+   512→    take: 2000,
+   513→    orderBy: { capturedAt: "desc" },
+   514→  });
+   515→
+   516→  for (const r of rows) {
+   517→    stats.files_checked += 1;
+   518→    let diskText: string;
+   519→    try {
+   520→      diskText = await readFile(resolveVaultPath(r.filePath), "utf-8");
+   521→    } catch {
+   522→      continue; // file missing/unreadable — skip silently
+   523→    }
+   524→
+   525→    // The editable payload lives after the "## Content\n" marker
+   526→    const marker = "## Content\n";
+   527→    let newRaw: string;
+   528→    if (diskText.includes(marker)) {
+   529→      newRaw = diskText.split(marker, 2)[1].trim();
+   530→    } else {
+   531→      newRaw = diskText.trim();
+   532→    }
+   533→
+   534→    if (newRaw && newRaw !== r.rawContent.trim()) {
+   535→      await db.item.update({ where: { id: r.id }, data: { rawContent: newRaw } });
+   536→      stats.sqlite_records_updated += 1;
+   537→
+   538→      // Re-embed so FTS-equivalent fields AND semantic search stay in sync
+   539→      await db.itemVector.upsert({
+   540→        where: { itemId: r.id },
+   541→        update: { ...embedForStorage(`${r.title}\n${newRaw}\n${r.structuredSummary}\n${r.visualDescription}`), indexedAt: new Date() },
+   542→        create: {
+   543→          id: newVectorId(),
+   544→          itemId: r.id,
+   545→          projectId: r.projectId,
+   546→          ...embedForStorage(`${r.title}\n${newRaw}\n${r.structuredSummary}\n${r.visualDescription}`),
+   547→        },
+   548→      });
+   549→      stats.vectors_resynced += 1;
+   550→    }
+   551→  }
+   552→
+   553→  return stats;
+   554→}
+   555→
+   556→// ==========================================
+   557→// DECISION LOG + KNOWLEDGE GRAPH
+   558→// ==========================================
+   559→
+   560→export async function logDecision(input: {
+   561→  projectId: string;
+   562→  title: string;
+   563→  decision: string;
+   564→  reasoning: string;
+   565→  alternatives?: string[];
+   566→  outcome?: string;
+   567→  sourceItemId?: string | null;
+   568→}): Promise<BrainDecision> {
+   569→  const decId = `dec_${randomUUID().replace(/-/g, "").slice(0, 10)}`;
+   570→  const created = await db.decision.create({
+   571→    data: {
+   572→      id: decId,
+   573→      projectId: input.projectId,
+   574→      title: input.title,
+   575→      decision: input.decision,
+   576→      alternatives: JSON.stringify(input.alternatives ?? []),
+   577→      reasoning: input.reasoning,
+   578→      outcome: input.outcome ?? "Active",
+   579→      sourceItemId: input.sourceItemId ?? null,
+   580→    },
+   581→  });
+   582→
+   583→  // Link decision in the Knowledge Graph (DECIDED_ON edge), as sqlite_store.log_decision does
+   584→  await addGraphEdge(input.projectId, input.title, input.decision, "DECIDED_ON");
+   585→  return toDecision(created);
+   586→}
+   587→
+   588→export async function addGraphEdge(
+   589→  projectId: string | null,
+   590→  sourceNode: string,
+   591→  targetNode: string,
+   592→  relationType = "RELATED_TO",
+   593→  weight = 1.0
+   594→): Promise<GraphEdge> {
+   595→  const edge = await db.graphEdge.create({
+   596→    data: {
+   597→      id: `edge_${randomUUID().replace(/-/g, "").slice(0, 12)}`,
+   598→      projectId,
+   599→      sourceNode: sourceNode.trim(),
+   600→      targetNode: targetNode.trim(),
+   601→      relationType: relationType.toUpperCase(),
+   602→      weight,
+   603→    },
+   604→  });
+   605→  return {
+   606→    id: edge.id,
+   607→    projectId: edge.projectId,
+   608→    sourceNode: edge.sourceNode,
+   609→    targetNode: edge.targetNode,
+   610→    relationType: edge.relationType,
+   611→    weight: edge.weight,
+   612→    createdAt: edge.createdAt.toISOString(),
+   613→  };
+   614→}
+   615→
+   616→export async function getProjectGraph(projectId: string, limit = 100): Promise<GraphEdge[]> {
+   617→  const rows = await db.graphEdge.findMany({
+   618→    where: { projectId },
+   619→    orderBy: { createdAt: "desc" },
+   620→    take: limit,
+   621→  });
+   622→  return rows.map((e) => ({
+   623→    id: e.id,
+   624→    projectId: e.projectId,
+   625→    sourceNode: e.sourceNode,
+   626→    targetNode: e.targetNode,
+   627→    relationType: e.relationType,
+   628→    weight: e.weight,
+   629→    createdAt: e.createdAt.toISOString(),
+   630→  }));
+   631→}
+   632→
+   633→// ==========================================
+   634→// VECTOR INDEX MAINTENANCE (backfill + invariant)
+   635→// ==========================================
+   636→
+   637→let vectorIndexReady = false;
+   638→
+   639→/**
+   640→ * Backfills embeddings for any item missing its vector sidecar row.
+   641→ * Called lazily before semantic search / daemon cycles; memoized after first success
+   642→ * (saveItem guarantees the invariant for new items).
+   643→ */
+   644→export async function ensureVectorIndex(): Promise<{ backfilled: number }> {
+   645→  if (vectorIndexReady) return { backfilled: 0 };
+   646→  const missing = await db.item.findMany({
+   647→    where: { vector: { is: null } },
+   648→    take: 5000,
+   649→    orderBy: { capturedAt: "asc" },
+   650→  });
+   651→  for (const row of missing) {
+   652→    const item = toItem(row);
+   653→    await db.itemVector.create({
+   654→      data: {
+   655→        id: newVectorId(),
+   656→        itemId: item.id,
+   657→        projectId: item.projectId,
+   658→        ...embedForStorage(
+   659→          `${item.title}\n${item.rawContent}\n${item.structuredSummary}\n${item.visualDescription}`
+   660→        ),
+   661→      },
+   662→    });
+   663→  }
+   664→  vectorIndexReady = true;
+   665→  return { backfilled: missing.length };
+   666→}
+   667→
+   668→export function isVectorIndexReady(): boolean {
+   669→  return vectorIndexReady;
+   670→}
+   671→
+   672→// ==========================================
+   673→// SEARCH (FTS5 BM25 -> token OR match across indexed fields)
+   674→// ==========================================
+   675→
+   676→export async function searchVault(
+   677→  query: string,
+   678→  projectId: string | null = null,
+   679→  limit = 20
+   680→): Promise<Array<BrainItem & { rank: number }>> {
+   681→  const cleanTokens = query
+   682→    .split(/\s+/)
+   683→    .map((w) => w.replace(/[^a-zA-Z0-9]/g, ""))
+   684→    .filter((t) => t.length > 1);
+   685→  if (cleanTokens.length === 0) return [];
+   686→
+   687→  // SQLite: case-insensitive contains across the FTS-indexed fields, OR-combined per token
+   688→  const tokenFilter = cleanTokens.map((t) => ({
+   689→    OR: [
+   690→      { title: { contains: t } },
+   691→      { rawContent: { contains: t } },
+   692→      { structuredSummary: { contains: t } },
+   693→      { visualDescription: { contains: t } },
+   694→    ],
+   695→  }));
+   696→
+   697→  const rows = await db.item.findMany({
+   698→    where: { AND: [{ OR: tokenFilter }, ...(projectId ? [{ projectId }] : [])] },
+   699→    orderBy: { capturedAt: "desc" },
+   700→    take: limit * 3,
+   701→  });
+   702→
+   703→  // BM25-ish ranking: more token hits across fields = better rank, tiebreak by recency
+   704→  const scored = rows.map((row: ItemRow) => {
+   705→    const item = toItem(row);
+   706→    const haystack = `${item.title}\n${item.rawContent}\n${item.structuredSummary}\n${item.visualDescription}`.toLowerCase();
+   707→    let hits = 0;
+   708→    for (const t of cleanTokens) {
+   709→      if (haystack.includes(t.toLowerCase())) hits += 1;
+   710→    }
+   711→    const ageHours = (Date.now() - new Date(item.capturedAt).getTime()) / 36e5;
+   712→    const rank = hits * 10 + Math.max(0, 5 - ageHours / 24);
+   713→    return { ...item, rank };
+   714→  });
+   715→
+   716→  scored.sort((a, b) => b.rank - a.rank);
+   717→  return scored.slice(0, limit);
+   718→}
+   719→
+   720→export type SearchMode = "hybrid" | "semantic" | "fts";
+   721→
+   722→export interface SemanticSearchHit extends BrainItem {
+   723→  rank: number;
+   724→  /** Cosine similarity vs the query embedding (0..1). Present on vector-matched hits. */
+   725→  similarity?: number;
+   726→  /** Which ranking channels contributed: "vector" and/or "fts". */
+   727→  modes: string[];
+   728→}
+   729→
+   730→/**
+   731→ * Hybrid semantic search (Sprint 3 upgrade):
+   732→ *  - "semantic": pure cosine similarity over brain-hash-v1 embeddings
+   733→ *  - "fts":      legacy BM25-like token ranking (searchVault)
+   734→ *  - "hybrid":   0.6*vector + 0.25*token-overlap + 0.15*recency (default)
+   735→ */
+   736→export async function searchVaultHybrid(
+   737→  query: string,
+   738→  opts: {
+   739→    projectId?: string | null;
+   740→    limit?: number;
+   741→    mode?: SearchMode;
+   742→  } = {}
+   743→): Promise<SemanticSearchHit[]> {
+   744→  const { projectId = null, limit = 20, mode = "hybrid" } = opts;
+   745→  if (!query.trim()) return [];
+   746→
+   747→  if (mode === "fts") {
+   748→    const fts = await searchVault(query, projectId, limit);
+   749→    return fts.map((r) => ({ ...r, modes: ["fts"] }));
+   750→  }
+   751→
+   752→  await ensureVectorIndex();
+   753→  const cleanTokens = query
+   754→    .split(/\s+/)
+   755→    .map((w) => w.replace(/[^a-zA-Z0-9]/g, ""))
+   756→    .filter((t) => t.length > 1);
+   757→  const queryVec = embedText(query);
+   758→
+   759→  const [vectorRows, tokenHits] = await Promise.all([
+   760→    db.itemVector.findMany({
+   761→      where: projectId ? { projectId } : {},
+   762→      include: { item: true },
+   763→      take: 3000,
+   764→      orderBy: { indexedAt: "desc" },
+   765→    }),
+   766→    cleanTokens.length > 0
+   767→      ? searchVault(query, projectId, limit * 3)
+   768→      : Promise.resolve([]),
+   769→  ]);
+   770→
+   771→  const tokenScore = new Map<string, number>();
+   772→  if (cleanTokens.length > 0) {
+   773→    for (const hit of tokenHits) {
+   774→      const haystack =
+   775→        `${hit.title}\n${hit.rawContent}\n${hit.structuredSummary}\n${hit.visualDescription}`.toLowerCase();
+   776→      let hits = 0;
+   777→      for (const t of cleanTokens) {
+   778→        if (haystack.includes(t.toLowerCase())) hits += 1;
+   779→      }
+   780→      tokenScore.set(hit.id, hits / cleanTokens.length); // 0..1 coverage
+   781→    }
+   782→  }
+   783→
+   784→  const maxAgeHours = 24 * 14;
+   785→  const scored: SemanticSearchHit[] = vectorRows.map((row) => {
+   786→    const item = toItem(row.item);
+   787→    const sim = Math.max(0, cosineSimilarity(queryVec, decodeVector(row.vector)));
+   788→    const tScore = tokenScore.get(item.id) ?? 0;
+   789→    const ageHours = (Date.now() - new Date(item.capturedAt).getTime()) / 36e5;
+   790→    const recency = Math.max(0, 1 - ageHours / maxAgeHours);
+   791→    const rank =
+   792→      mode === "semantic"
+   793→        ? sim
+   794→        : 0.6 * sim + 0.25 * tScore + 0.15 * recency;
+   795→    const modes: string[] = [];
+   796→    if (sim > 0.01) modes.push("vector");
+   797→    if (tScore > 0) modes.push("fts");
+   798→    return { ...item, rank, similarity: sim, modes };
+   799→  });
+   800→
+   801→  scored.sort((a, b) => b.rank - a.rank);
+   802→  return scored.slice(0, limit);
+   803→}
+   804→
+   805→// ==========================================
+   806→// TIMELINE
+   807→// ==========================================
+   808→
+   809→export async function getUniversalTimeline(datePrefix?: string | null, limit = 50): Promise<TimelineEntry[]> {
+   810→  const rows = await db.item.findMany({
+   811→    where: datePrefix
+   812→      ? {
+   813→          capturedAt: {
+   814→            gte: new Date(`${datePrefix}T00:00:00.000Z`),
+   815→            lt: new Date(`${datePrefix}T23:59:59.999Z`),
+   816→          },
+   817→        }
+   818→      : undefined,
+   819→    orderBy: { capturedAt: "desc" },
+   820→    take: limit,
+   821→    include: { project: { select: { name: true } } },
+   822→  });
+   823→
+   824→  return rows.map((r) => ({
+   825→    id: r.id,
+   826→    itemType: r.itemType,
+   827→    title: r.title,
+   828→    structuredSummary: r.structuredSummary,
+   829→    sourceApp: r.sourceApp,
+   830→    capturedAt: r.capturedAt.toISOString(),
+   831→    projectName: r.project?.name ?? null,
+   832→  }));
+   833→}
+   834→
+   835→// ==========================================
+   836→// KNOWLEDGE HEALTH SCORE + GAP DETECTION (shared by details API & compressor)
+   837→// ==========================================
+   838→
+   839→export interface ComputedHealth {
+   840→  score: number;
+   841→  gaps: Array<{ gap: string; detail: string; severity: "high" | "medium" | "low" }>;
+   842→}
+   843→
+   844→/**
+   845→ * Deterministic Knowledge Health scoring + gap detection (v2.1-aligned).
+   846→ * Base: 40 + 20 summary + 20 decisions + min(20, items*5); gaps subtract up to 20.
+   847→ * v2.1 adds the "fixes without a root-cause decision" rule from
+   848→ * memory_compressor._compute_health_and_gaps. Blueprint example: "40 screenshots of
+   849→ * database errors but no Database Architecture doc" -> flagged.
+   850→ */
+   851→export function computeHealthAndGaps(
+   852→  project: BrainProject,
+   853→  items: BrainItem[],
+   854→  decisions: BrainDecision[],
+   855→  resolvedFixes: string[] = []
+   856→): ComputedHealth {
+   857→  const gaps: ComputedHealth["gaps"] = [];
+   858→  let score =
+   859→    40 +
+   860→    (project.rollingSummary ? 20 : 0) +
+   861→    (decisions.length > 0 ? 20 : 0) +
+   862→    Math.min(20, items.length * 5);
+   863→
+   864→  // Gap 1 — unresolved error captures (blueprint: error surge without documented fix)
+   865→  const unresolved = items.filter((it) => {
+   866→    const isError = /error|exception|traceback|failed|cannot find|module not found/i.test(
+   867→      `${it.title} ${it.rawContent}`
+   868→    );
+   869→    if (!isError) return false;
+   870→    // metadata is already parsed into an object by toItem
+   871→    return !it.metadata || !it.metadata.fix;
+   872→  });
+   873→  if (unresolved.length >= 3) {
+   874→    gaps.push({
+   875→      gap: "Unresolved error captures piling up",
+   876→      detail: `${unresolved.length} error captures have no logged fix — log the fix or decision that resolved them`,
+   877→      severity: "high",
+   878→    });
+   879→  }
+   880→
+   881→  // Gap 2 — visual-heavy, text-light memory
+   882→  const shots = items.filter((i) => i.itemType === "screenshot").length;
+   883→  const notes = items.filter((i) => i.itemType === "note").length;
+   884→  if (shots >= 5 && notes === 0) {
+   885→    gaps.push({
+   886→      gap: "Visual-heavy memory without notes",
+   887→      detail: `${shots} screenshots but zero written notes — screenshots are hard to recall without a summary note`,
+   888→      severity: "medium",
+   889→    });
+   890→  }
+   891→
+   892→  // Gap 3 — captures without decisions
+   893→  if (items.length >= 8 && decisions.length === 0) {
+   894→    gaps.push({
+   895→      gap: "Captures without logged decisions",
+   896→      detail: `${items.length} captures yet no architectural decisions — capture choices with 'Decision: ... Reason: ...'`,
+   897→      severity: "medium",
+   898→    });
+   899→  }
+   900→
+   901→  // Gap 4 — stale project memory
+   902→  if (items.length > 0) {
+   903→    const newest = Math.max(...items.map((i) => new Date(i.capturedAt).getTime()));
+   904→    const staleDays = Math.floor((Date.now() - newest) / 864e5);
+   905→    if (staleDays > 14) {
+   906→      gaps.push({
+   907→        gap: "Stale project memory",
+   908→        detail: `No new captures in ${staleDays} days — project knowledge is going stale`,
+   909→        severity: "low",
+   910→      });
+   911→    }
+   912→  }
+   913→
+   914→  // Gap 5 — no compressed memory
+   915→  if (!project.rollingSummary) {
+   916→    gaps.push({
+   917→      gap: "No compressed memory",
+   918→      detail: "Run the Memory Compressor to synthesize Tier-1 rolling memory",
+   919→      severity: "medium",
+   920→    });
+   921→  }
+   922→
+   923→  // Gap 6 (v2.1) — fixes exist without a corresponding root-cause decision
+   924→  if (resolvedFixes.length > 0 && decisions.length === 0) {
+   925→    gaps.push({
+   926→      gap: "Fixes without a root-cause decision",
+   927→      detail: `${resolvedFixes.length} fix(es) logged but no architectural decision explains the root cause — capture the 'why' with 'Decision: ... Reason: ...'`,
+   928→      severity: "medium",
+   929→    });
+   930→  }
+   931→
+   932→  const penalty = gaps.reduce(
+   933→    (acc, g) => acc + (g.severity === "high" ? 8 : g.severity === "medium" ? 4 : 2),
+   934→    0
+   935→  );
+   936→  score = Math.max(0, Math.min(100, score - Math.min(20, penalty)));
+   937→  return { score, gaps };
+   938→}
+   939→
+   940→// ==========================================
+   941→// PROJECT DETAILS + KNOWLEDGE HEALTH SCORE
+   942→// ==========================================
+   943→
+   944→export async function getProjectDetails(projectId: string): Promise<ProjectDetails | { error: string }> {
+   945→  const raw = await db.project.findUnique({ where: { id: projectId } });
+   946→  if (!raw) return { error: "Project not found" };
+   947→  const project = toProject(raw);
+   948→
+   949→  const [itemRows, decisionRows, edges] = await Promise.all([
+   950→    db.item.findMany({ where: { projectId }, orderBy: { capturedAt: "desc" }, take: 50 }),
+   951→    db.decision.findMany({ where: { projectId }, orderBy: { decidedAt: "desc" }, take: 30 }),
+   952→    getProjectGraph(projectId),
+   953→  ]);
+   954→
+   955→  const items = itemRows.map(toItem);
+   956→  const decisions = decisionRows.map(toDecision);
+   957→  // v2.1: resolved fixes feed the "fixes without a root-cause decision" health gap
+   958→  const resolvedFixes = items
+   959→    .map((it) => (typeof it.metadata?.fix === "string" ? it.metadata.fix : ""))
+   960→    .filter(Boolean);
+   961→  const { score, gaps } = computeHealthAndGaps(project, items, decisions, resolvedFixes);
+   962→
+   963→  return {
+   964→    project,
+   965→    healthScore: score,
+   966→    healthGaps: gaps,
+   967→    lastCompressedAt: raw.lastCompressedAt ? raw.lastCompressedAt.toISOString() : null,
+   968→    items,
+   969→    decisions,
+   970→    graphEdges: edges,
+   971→  };
+   972→}
+   973→
+   974→// ==========================================
+   975→// 3-TIER CONTEXT INJECTION PAYLOAD
+   976→// ==========================================
+   977→
+   978→export async function buildContextInjectionPayload(
+   979→  projectId: string,
+   980→  activeQuery = ""
+   981→): Promise<ContextPayload | { error: string }> {
+   982→  const project = await getProjectById(projectId);
+   983→  if (!project) return { error: `Project ${projectId} not found` };
+   984→
+   985→  const [decisionRows, recentRows, edges] = await Promise.all([
+   986→    db.decision.findMany({ where: { projectId }, orderBy: { decidedAt: "desc" }, take: 6 }),
+   987→    db.item.findMany({ where: { projectId }, orderBy: { capturedAt: "desc" }, take: 6 }),
+   988→    getProjectGraph(projectId, 5),
+   989→  ]);
+   990→
+   991→  const tier2 = decisionRows.map(toDecision).map((d) => ({
+   992→    title: d.title,
+   993→    decision: d.decision.length > 80 ? `${d.decision.slice(0, 80)}…` : d.decision,
+   994→    reasoning: d.reasoning.length > 60 ? `${d.reasoning.slice(0, 60)}…` : d.reasoning,
+   995→    outcome: d.outcome,
+   996→    decidedAt: d.decidedAt,
+   997→  }));
+   998→
+   999→  let tier3: ContextPayload["tier_3_recent_and_relevant_evidence"] = [];
+  1000→  if (activeQuery) {
+  1001→    const hits = await searchVault(activeQuery, projectId, 5);
+  1002→    tier3 = hits.map((h) => ({
+  1003→      title: h.title.slice(0, 70),
+  1004→      type: h.itemType,
+  1005→      summary: (h.structuredSummary || h.rawContent).slice(0, 140),
+  1006→      visual_context: h.visualDescription ? h.visualDescription.slice(0, 100) : undefined,
+  1007→      captured_at: h.capturedAt,
+  1008→    }));
+  1009→  }
+  1010→
+  1011→  if (tier3.length === 0) {
+  1012→    tier3 = recentRows.map((r) => {
+  1013→      const item = toItem(r);
+  1014→      return {
+  1015→        title: item.title,
+  1016→        type: item.itemType,
+  1017→        summary: item.structuredSummary.slice(0, 180),
+  1018→        captured_at: item.capturedAt,
+  1019→      };
+  1020→    });
+  1021→  }
+  1022→
+  1023→  return {
+  1024→    project_name: project.name,
+  1025→    tier_1_rolling_memory: project.rollingSummary || "Active development project.",
+  1026→    tier_2_decision_graph: tier2,
+  1027→    tier_3_recent_and_relevant_evidence: tier3,
+  1028→    // Slim edge projection keeps the JSON transport payload compact — the graph
+  1029→    // itself (full edges) is served by /api/projects/[id] for the Graph view.
+  1030→    knowledge_graph_edges: edges.map((e) => ({
+  1031→      source_node: e.sourceNode,
+  1032→      target_node: e.targetNode,
+  1033→      relation_type: e.relationType,
+  1034→    })),
+  1035→  };
+  1036→}
+  1037→
+  1038→/** Builds the anti-drift structured prompt wrapper (port of brain_api.py /context prompt rewriter). */
+  1039→export function buildStructuredPrompt(
+  1040→  payload: ContextPayload,
+  1041→  rawGoal = ""
+  1042→): string {
+  1043→  let prompt =
+  1044→    `# ROLE & GROUNDING CONSTRAINTS\n` +
+  1045→    `You are working on project **${payload.project_name}**.\n` +
+  1046→    `Follow the architectural decisions and evidence below strictly. Do NOT hallucinate unapproved libraries or revert past decisions.\n\n` +
+  1047→    `## TIER 1: COMPRESSED PROJECT MEMORY\n${payload.tier_1_rolling_memory}\n\n` +
+  1048→    `## TIER 2: ACTIVE ARCHITECTURAL DECISIONS (DO NOT VIOLATE)\n`;
+  1049→
+  1050→  for (const d of payload.tier_2_decision_graph) {
+  1051→    prompt += `- **${d.title}**: ${d.decision} (Reason: ${d.reasoning})\n`;
+  1052→  }
+  1053→
+  1054→  prompt += `\n## TIER 3: RELEVANT VAULT EVIDENCE & PAST FIXES\n`;
+  1055→  for (const ev of payload.tier_3_recent_and_relevant_evidence) {
+  1056→    prompt += `- [${ev.type.toUpperCase()}] **${ev.title}**: ${ev.summary}\n`;
+  1057→  }
+  1058→
+  1059→  if (rawGoal) {
+  1060→    prompt +=
+  1061→      `\n## CURRENT TASK / REWRITTEN EXECUTION SPEC\n` +
+  1062→      `**Objective:** ${rawGoal}\n` +
+  1063→      `**Required Output:** Provide modular, runnable code that respects Tier 1 & Tier 2 constraints and includes a quick verification step.\n`;
+  1064→  }
+  1065→
+  1066→  return prompt;
+  1067→}
+  1068→

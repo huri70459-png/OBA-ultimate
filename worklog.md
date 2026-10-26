@@ -245,3 +245,27 @@ Stage Summary:
 - All 6 review items closed: socket realtime layer (sandbox-correct gateway topology, graceful optional-infra degradation), all 4 graph layouts surfaced at view level, dead Tailwind v3 config removed + v4 adjudication documented, docs/API_CONTRACTS.md written as verified contract-of-record w/ review-delta annotations, auth verdict = already-enterprise-ready (no action), a11y = enforced lint rules + keyboard-operable graph
 - Board: 171 -> 200 checks; realtime service is OPTIONAL infrastructure — app degrades silently without it
 - Deviations (documented in docs/API_CONTRACTS.md): review's localhost:3001 URL / {messages,capture} bodies / /api/graph/infer / next-auth swap adapted to sandbox + shipped architecture with rationale
+
+---
+Task ID: 12
+Agent: main (Z.ai)
+Task: Evaluate "GitHub Repo Review Request" audit (4-file bundle: schema.prisma, mcp_server.mjs, desktop_agent.py, brain_missing_modules_bundle.ts + 3 patches) — verification only, NO implementation per user instruction
+
+Work Log:
+- Verified every claim against the live codebase (Read/Grep evidence):
+  (1) schema.prisma "missing" = FALSE for local repo (exists, 8 models, db:push works, board 200/200) but the 3 new tables BrainCaptureJob/BrainAction/BrainItemRevision = genuinely absent (0 grep hits) — auditor clearly reviewed a partial GitHub snapshot
+  (2) scripts/mcp_server.mjs = MISSING (true) — scripts/ holds only verify-*.mjs + screenshots + smoke-v22.py; src "mcp" matches are parity comments + Sidebar "MCP Bridge" label + selftest scenario name; no JSON-RPC 2.0 server anywhere
+  (3) scripts/desktop_agent.py = MISSING (true) — only the server-side wire format exists (/api/agent/capture w/ token auth, brain_api.py parity); upload/desktop_agent.py reference is stdlib-only clipboard/snip/watch, no screenshot-to-Base64, no privacy guard, no redaction, no JSONL spooling — so the proposed agent is net-new capability even vs the reference
+  (4) privacy-redactor = MISSING (true) — only display-side maskSecret in settings.ts; zero scrubbing of captured content (sk-/ghp_/AIza/PEM/Bearer), no sensitive-window blocklist; copied secrets currently persist raw to SQLite + vault markdown
+  (5) vision-ocr = MISSING (true) — no image_base64 handling anywhere; /api/capture + /api/agent/capture accept text-only fields; "vision-ocr-extractor" in model-routing.ts is a routing label, not an implementation; no image asset persistence (vault contains only .md)
+  (6) action-verifier = MISSING (true) — resolveItem only sets triage_status="resolved" + note + ts; FIXED_BY graph edges exist but no detected->suggested->attempted->verified lifecycle; health score has no verified/unverified separation
+  (7) PATCH /api/items/[id] = MISSING (true) — no items/ route tree, no PATCH usage in src; VaultView editor is capture-only; disk->SQLite sync exists (syncMarkdownEditsFromDisk) but app->vault edit direction does not
+  (8) Patch A = TRUE both counts — filename = `${YYYYMMDD_HHmmss}_${titleSlug}.md` (second precision, no item id) + bare writeFile (store.ts:126), no .tmp+rename -> same-second same-title collisions silently overwrite, crash mid-write truncates
+  (9) Patch B = TRUE (direct consequence of 4+5) — /api/capture POST calls capture() with raw content, no sanitize, no image branch
+  (10) Patch C race = TRUE in substance — workspace-store.ts loadDetails (100-110) has no request-id/abort guard; BUT audit's patch targets /api/project-details?project_id= while real code calls /api/projects/${id} — more proof of snapshot drift; implementation must adapt, not paste
+- Noted: .gitignore does NOT exclude prisma/ — if the GitHub repo lacks schema.prisma, the push was incomplete (user should re-push from this workspace, the source of truth)
+- No implementation performed per explicit user instruction; awaiting user's codebase share to proceed
+
+Stage Summary:
+- Verdict: audit substantively TRUE — 9/10 items are real gaps (only "schema.prisma missing" is false locally; the 3 new tables remain valid additions); all items are net-new capability with zero overlap/conflict against shipped v2.4+realtime architecture; priority flagged: privacy redaction is the highest-risk gap (secrets can persist raw today)
+- Reply to user: "its true we need these it will further improve the app" + verdict matrix; implementation deferred until user shares their codebase copy for reconciliation
