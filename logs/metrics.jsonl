@@ -715,3 +715,29 @@
 {"ts":"2026-10-26T04:23:52.611Z","type":"web_vital","name":"TTFB","value":435,"rating":"good","path":"/"}
 {"ts":"2026-10-26T04:23:52.625Z","type":"web_vital","name":"FCP","value":868,"rating":"good","path":"/"}
 {"ts":"2026-10-26T04:23:55.266Z","type":"api_timing","route":"GET /api/projects/proj_73be043bf3","ms":2256,"status":200}
+{"ts":"2026-10-26T04:24:49.163Z","type":"web_vital","name":"CLS","value":0,"rating":"good","path":"/"}
+{"ts":"2026-10-26T04:24:49.166Z","type":"web_vital","name":"LCP","value":868,"rating":"good","path":"/"}
+{"ts":"2026-10-26T04:45:27.463Z","type":"api_timing","route":"GET /api/chat?project_id=proj_e259e5da9b","ms":416,"status":200}
+{"ts":"2026-10-26T04:45:28.975Z","type":"api_timing","route":"GET /api/projects/proj_e259e5da9b","ms":2002,"status":200}
+{"ts":"2026-10-26T04:45:39.073Z","type":"web_vital","name":"INP","value":256,"rating":"needs-improv","path":"/"}
+{"ts":"2026-10-26T04:46:18.760Z","type":"web_vital","name":"INP","value":248,"rating":"needs-improv","path":"/"}
+{"ts":"2026-10-26T04:47:42.761Z","type":"api_timing","route":"GET /api/projects/proj_e259e5da9b","ms":1593,"status":200}
+{"ts":"2026-10-26T04:48:03.162Z","type":"api_timing","route":"GET /api/projects/proj_e259e5da9b","ms":1662,"status":200}
+{"ts":"2026-10-26T04:48:04.880Z","type":"api_timing","route":"GET /api/projects/proj_867e224c58","ms":1658,"status":200}
+{"ts":"2026-10-26T04:48:07.256Z","type":"api_timing","route":"GET /api/projects/proj_867e224c58","ms":1495,"status":200}
+{"ts":"2026-10-26T04:48:13.622Z","type":"api_timing","route":"GET /api/projects/proj_867e224c58","ms":1632,"status":200}
+{"ts":"2026-10-26T04:48:38.329Z","type":"api_timing","route":"GET /api/projects/proj_867e224c58","ms":1923,"status":200}
+{"ts":"2026-10-26T04:48:39.386Z","type":"api_timing","route":"GET /api/projects/proj_867e224c58","ms":1702,"status":200}
+{"ts":"2026-10-26T04:49:45.520Z","type":"web_vital","name":"INP","value":240,"rating":"needs-improv","path":"/"}
+{"ts":"2026-10-26T04:49:47.379Z","type":"web_vital","name":"TTFB","value":574,"rating":"good","path":"/"}
+{"ts":"2026-10-26T04:49:47.392Z","type":"web_vital","name":"FCP","value":1112,"rating":"good","path":"/"}
+{"ts":"2026-10-26T04:49:49.215Z","type":"api_timing","route":"GET /api/projects/proj_867e224c58","ms":1383,"status":200}
+{"ts":"2026-10-26T04:50:16.439Z","type":"web_vital","name":"LCP","value":4808,"rating":"poor","path":"/"}
+{"ts":"2026-10-26T04:50:16.455Z","type":"web_vital","name":"CLS","value":0,"rating":"good","path":"/"}
+{"ts":"2026-10-26T05:10:33.588Z","type":"web_vital","name":"TTFB","value":458,"rating":"good","path":"/"}
+{"ts":"2026-10-26T05:10:33.590Z","type":"web_vital","name":"FCP","value":768,"rating":"good","path":"/"}
+{"ts":"2026-10-26T05:10:35.402Z","type":"api_timing","route":"GET /api/projects/proj_867e224c58","ms":1508,"status":200}
+{"ts":"2026-10-26T05:11:04.272Z","type":"web_vital","name":"FID","value":3,"rating":"good","path":"/"}
+{"ts":"2026-10-26T05:11:04.283Z","type":"web_vital","name":"LCP","value":4320,"rating":"poor","path":"/"}
+{"ts":"2026-10-26T05:11:51.220Z","type":"web_vital","name":"INP","value":8,"rating":"good","path":"/"}
+{"ts":"2026-10-26T05:11:51.239Z","type":"web_vital","name":"CLS","value":0,"rating":"good","path":"/"}
