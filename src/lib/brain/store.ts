@@ -3,7 +3,7 @@
 // + REAL on-disk Obsidian-style vault (v2: two-way markdown disk sync)
 
 import { randomUUID } from "crypto";
-import { mkdir, readFile, rename, unlink, writeFile } from "fs/promises";
+import { mkdir, readFile, rename, stat, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { db } from "@/lib/db";
 import {
@@ -174,6 +174,9 @@ export function toItem(row: ItemRow): BrainItem {
     sourceApp: (row.sourceApp as string) ?? "",
     sourceUrl: (row.sourceUrl as string) ?? "",
     metadata: safeParseObject((row.metadata as string) || "{}"),
+    // v2.6 durable vault-sync state (audit-2 blocker #5 residual)
+    vaultSyncStatus: (row.vaultSyncStatus as string) ?? "synced",
+    vaultSyncError: (row.vaultSyncError as string | null) ?? null,
     capturedAt: new Date(row.capturedAt).toISOString(),
   };
 }
@@ -386,8 +389,12 @@ export async function saveItem(input: {
     await db.project.update({ where: { id: project.id }, data: { updatedAt: now } });
   }
 
-  // v2: write the real Obsidian-compatible .md file to disk (best-effort, sqlite_store parity)
-  await writeVaultFile(
+  // v2: write the real Obsidian-compatible .md file to disk — and v2.6: the
+  // write result is stamped as DURABLE per-item vault-sync state, so a capture
+  // can never present itself as fully saved while its .md is pending/failed
+  // (audit-2 blocker #5: "do not present a capture as fully saved until the
+  // database and vault write both succeed — or clearly label it").
+  const vaultWritten = await writeVaultFile(
     created.filePath,
     buildItemMarkdown({
       id: created.id,
@@ -403,8 +410,69 @@ export async function saveItem(input: {
       rawContent: created.rawContent,
     })
   );
+  const stamped = await db.item
+    .update({
+      where: { id: created.id },
+      data: vaultWritten
+        ? { vaultSyncStatus: "synced" }
+        : { vaultSyncStatus: "failed", vaultSyncError: "Vault .md write failed (disk error or vault path rejected)" },
+    })
+    .catch(() => created); // status stamping must never break the capture itself
 
-  return toItem(created);
+  return toItem(stamped);
+}
+
+/**
+ * v2.6 boot reconciliation for durable vault-sync state. Rows can only get
+ * stuck in `pending` if a process died between the DB create and the sync
+ * stamp (or pre-v2.6 rows that received the column default). Once per server
+ * boot: check each pending item's .md on disk and settle it to synced/failed.
+ * Batches until the pending set is empty (bounded: 20 rounds x 500 rows;
+ * rows whose update fails are excluded and retried never — termination is
+ * guaranteed). Never throws — boot must not depend on reconciliation.
+ * Returns the number of rows settled to `synced`.
+ */
+let vaultSyncBackfilled = false;
+export async function backfillVaultSyncStatus(): Promise<number> {
+  if (vaultSyncBackfilled) return 0;
+  vaultSyncBackfilled = true;
+  try {
+    const attempted = new Set<string>();
+    let synced = 0;
+    for (let round = 0; round < 20; round++) {
+      const pending = await db.item.findMany({
+        where: {
+          vaultSyncStatus: "pending",
+          filePath: { not: "" },
+          ...(attempted.size > 0 ? { id: { notIn: [...attempted] } } : {}),
+        },
+        select: { id: true, filePath: true },
+        take: 500,
+      });
+      if (pending.length === 0) break;
+      for (const row of pending) {
+        attempted.add(row.id);
+        let ok = false;
+        try {
+          ok = (await stat(resolveVaultPath(row.filePath))).isFile();
+        } catch {
+          ok = false;
+        }
+        const updated = await db.item
+          .update({
+            where: { id: row.id },
+            data: ok
+              ? { vaultSyncStatus: "synced" }
+              : { vaultSyncStatus: "failed", vaultSyncError: "Vault .md file not found on disk (boot reconciliation)" },
+          })
+          .catch(() => null);
+        if (updated?.vaultSyncStatus === "synced") synced += 1;
+      }
+    }
+    return synced;
+  } catch {
+    return 0;
+  }
 }
 
 // ==========================================

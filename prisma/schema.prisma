@@ -37,7 +37,7 @@ model Item {
   projectId          String?
   itemType           String // note | screenshot | terminal | clip
   title              String
-  rawContent         String
+  rawContent          String
   structuredSummary  String   @default("")
   visualDescription  String   @default("")
   filePath           String   @default("")
@@ -45,6 +45,12 @@ model Item {
   sourceApp          String   @default("")
   sourceUrl          String   @default("")
   metadata           String   @default("{}") // JSON object
+  // v2.6 — durable vault-sync state per item (audit-2 blocker #5 residual):
+  // a capture must never present itself as fully saved while its .md file is
+  // still pending or failed on disk. pending -> synced | failed; rows stuck
+  // in pending are reconciled against the filesystem once per boot.
+  vaultSyncStatus    String   @default("pending") // pending | synced | failed
+  vaultSyncError     String?
   capturedAt         DateTime @default(now())
 
   project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)

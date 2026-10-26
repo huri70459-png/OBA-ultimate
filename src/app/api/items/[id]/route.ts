@@ -170,7 +170,13 @@ export async function PATCH(
       const metaWithSync = { ...updatedMeta, vault_sync_status: vaultSyncStatus };
       await db.item.update({
         where: { id },
-        data: { metadata: JSON.stringify(metaWithSync) },
+        data: {
+          metadata: JSON.stringify(metaWithSync),
+          // v2.6: durable columns are the source of truth (metadata key kept
+          // for wire compatibility with older clients)
+          vaultSyncStatus,
+          ...(written ? { vaultSyncError: null } : { vaultSyncError: "Vault .md rewrite failed (disk error or vault path rejected)" }),
+        },
       });
       Object.assign(updatedMeta, metaWithSync);
     }

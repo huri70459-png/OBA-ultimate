@@ -272,6 +272,24 @@ export const VaultView = () => {
                     {item.title}
                   </span>
                   <OccurrenceBadge metadata={item.metadata} />
+                  {/* v2.6 durable vault-sync state — a capture is never silently
+                      "saved" while its .md is pending or failed on disk */}
+                  {item.vaultSyncStatus === "pending" && (
+                    <span
+                      title="Vault .md write in flight — reconciled against disk at next boot"
+                      className="shrink-0 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground"
+                    >
+                      Sync pending
+                    </span>
+                  )}
+                  {item.vaultSyncStatus === "failed" && (
+                    <span
+                      title={item.vaultSyncError || "Vault .md could not be written"}
+                      className="shrink-0 rounded border border-destructive/40 bg-destructive/10 px-1.5 py-0.5 text-[10px] font-semibold text-destructive"
+                    >
+                      Sync failed
+                    </span>
+                  )}
                   <button
                     onClick={() => startEdit(item)}
                     aria-label={`Edit ${item.title} in the editor`}

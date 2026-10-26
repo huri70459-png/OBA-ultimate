@@ -2,7 +2,7 @@
 // Seeds 3 projects + 2 demo captures so the workspace is populated in 5 seconds.
 
 import { db } from "@/lib/db";
-import { getAllProjects, upsertProject } from "./store";
+import { backfillVaultSyncStatus, getAllProjects, upsertProject } from "./store";
 import { capture } from "./pipeline";
 
 export async function ensureSeedData(): Promise<void> {
@@ -62,10 +62,14 @@ export async function ensureSeedData(): Promise<void> {
 let seedPromise: Promise<void> | null = null;
 export function ensureSeedDataOnce(): Promise<void> {
   if (!seedPromise) {
-    seedPromise = ensureSeedData().catch((err) => {
-      seedPromise = null;
-      throw err;
-    });
+    seedPromise = ensureSeedData()
+      .then(async () => {
+        await backfillVaultSyncStatus(); // v2.6: settle pending vault-sync rows (runs once per boot, never throws)
+      })
+      .catch((err) => {
+        seedPromise = null;
+        throw err;
+      });
   }
   return seedPromise;
 }

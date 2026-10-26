@@ -25,6 +25,9 @@ export interface BrainItem {
   sourceApp: string;
   sourceUrl: string;
   metadata: Record<string, unknown>;
+  /** v2.6 durable vault-sync state: pending -> synced | failed (audit-2 #5) */
+  vaultSyncStatus: string;
+  vaultSyncError: string | null;
   capturedAt: string;
 }
 

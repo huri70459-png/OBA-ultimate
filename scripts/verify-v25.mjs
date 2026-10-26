@@ -159,6 +159,40 @@ function runPython(args) {
     `engine="${health.data?.engine}"`
   );
 
+  // ================= A8/A9. v2.6 boundary hardening artifacts (Task 16) ====
+  const captureSchemaSrc = readFileSync(path.join(ROOT, "src/lib/brain/capture-schema.ts"), "utf-8");
+  const captureRouteSrc = readFileSync(path.join(ROOT, "src/app/api/capture/route.ts"), "utf-8");
+  const agentRouteSrc = readFileSync(path.join(ROOT, "src/app/api/agent/capture/route.ts"), "utf-8");
+  check(
+    "A8 capture boundary gate wired into BOTH capture routes",
+    /gateCaptureRequest/.test(captureRouteSrc) && /gateCaptureRequest/.test(agentRouteSrc) &&
+      /MAX_CAPTURE_BODY_BYTES/.test(captureSchemaSrc) && /CapturePayloadSchema/.test(captureSchemaSrc),
+    "zod schema (both wire dialects + per-field caps) + content-length body-size guard in /api/capture and /api/agent/capture"
+  );
+
+  const readmeExists = existsSync(path.join(ROOT, "README.md"));
+  const envExampleExists = existsSync(path.join(ROOT, ".env.example"));
+  const migrationsDir = path.join(ROOT, "prisma/migrations");
+  const hasMigration = existsSync(migrationsDir) &&
+    readFileSync(path.join(migrationsDir, "migration_lock.toml"), "utf-8").includes("sqlite") &&
+    existsSync(path.join(migrationsDir, "20251026000000_init", "migration.sql"));
+  const pkgSrc = readFileSync(path.join(ROOT, "package.json"), "utf-8");
+  check(
+    "A9 reproducibility artifacts (README + .env.example + migrations baseline)",
+    readmeExists && envExampleExists && hasMigration && pkgSrc.includes("db:migrate:deploy"),
+    `README=${readmeExists} .env.example=${envExampleExists} migrations=${hasMigration} db:migrate:deploy=${pkgSrc.includes("db:migrate:deploy")}`
+  );
+
+  const vaultSyncInSchema = /vaultSyncStatus/.test(schema) && /vaultSyncError/.test(schema);
+  const itemColumns = await prisma.$queryRawUnsafe("PRAGMA table_info(Item)");
+  const vaultSyncInDb = Array.isArray(itemColumns) &&
+    itemColumns.some((c) => c.name === "vaultSyncStatus") && itemColumns.some((c) => c.name === "vaultSyncError");
+  check(
+    "A10 durable vault-sync state columns (schema + SQLite)",
+    vaultSyncInSchema && vaultSyncInDb,
+    `schema=${vaultSyncInSchema} sqlite=${vaultSyncInDb}`
+  );
+
   // ================= B. Privacy Guard (live) =================
   const blocked = await post("/api/capture", {
     raw_content: `nonce ${nonce} secret window probe`,
@@ -496,6 +530,38 @@ function runPython(args) {
     jobCount > 0 && repeat.status === 200 && repeat.data?.status === "duplicate_merged" &&
       repeat.data?.capture_job?.id === job?.id && (repeat.data?.capture_job?.attempts ?? 0) >= 2,
     `attempts=${repeat.data?.capture_job?.attempts} on job ${repeat.data?.capture_job?.id}`
+  );
+
+  // ================= J. v2.6 boundary + vault-sync state (live) ============
+  const oversized = await post("/api/capture", {
+    raw_content: `boundary probe ${nonce}`,
+    window_title: "w".repeat(501), // zod cap: 500
+  });
+  check(
+    "J1 oversized capture field rejected at the boundary (400)",
+    oversized.status === 400 && oversized.data?.error === "Invalid capture payload" &&
+      Array.isArray(oversized.data?.issues) && oversized.data.issues.length >= 1,
+    `status=${oversized.status} error=${oversized.data?.error} firstIssue=${JSON.stringify(oversized.data?.issues?.[0])}`
+  );
+
+  const stampProbe = await post("/api/capture", {
+    raw_content: `vault sync stamp probe ${nonce} — item must be born synced`,
+    item_type: "note",
+    source_app: "V26Probe",
+    forced_project_id: gapPid,
+  });
+  const stampRow = stampProbe.data?.item ? await prisma.item.findUnique({ where: { id: stampProbe.data.item.id } }) : null;
+  check(
+    "J2 fresh capture is born with vaultSyncStatus=synced",
+    stampProbe.status === 200 && stampRow !== null && stampRow.vaultSyncStatus === "synced" && stampRow.vaultSyncError === null,
+    `status=${stampRow?.vaultSyncStatus} error=${stampRow?.vaultSyncError}`
+  );
+
+  const vaultViewSrc = readFileSync(path.join(ROOT, "src/components/brain/VaultView.tsx"), "utf-8");
+  check(
+    "J3 vault-sync state surfaces in the UI (pending/failed chips)",
+    /Sync pending/.test(vaultViewSrc) && /Sync failed/.test(vaultViewSrc),
+    "VaultView renders visible pending/failed badges instead of silent success"
   );
 
   const finalHealth = await jfetch("/api/health");
