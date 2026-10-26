@@ -318,3 +318,30 @@ Stage Summary:
 - Verdict: audit (2) is largely a STALE-SNAPSHOT review — 2 claims FALSE vs current code (2, 8), 4 substantially addressed by v2.5 with small residual deltas (1, 4, 5, 9), 1 partially true with 4 valid technical criticisms (6 — sync reconciler), 1 true-by-design (7), 1 true-with-context (3 — sandbox infra), 1 true (10 — hygiene)
 - The report's bottom line "app logic is ahead of repository packaging" was accurate for the GitHub snapshot but the working repo has since closed most logic gaps (v2.5, 239/239); the dominant remaining action is RE-PUSH from this workspace + residual deltas: README.md, .env.example, git rm --cached .env + *.pyc, sync reconciler upgrades (full-corpus window, deletion/rename detection, failure surfacing), zod capture schema + size caps, vaultSyncStatus fields, /api/assets/[id] + /api/jobs/[id], CaptureJob state machine
 - Evaluation delivered to user with verdict matrix; implementation deferred pending go-ahead
+
+---
+Task ID: 15
+Agent: main (Z.ai)
+Task: Audit the "Critical blockers to fix before calling this implementation-ready" claim (header section of upload/GitHub Repo Review Request (2).md, line 18) — verification only, NO implementation
+
+Work Log:
+- Located the exact claim text: the Review report (2) header section names 9 blockers + hygiene (reproducibility, TS build errors, Caddy port proxy, capture boundary, vault writes, two-way sync, search maturity, fix lifecycle, MCP/agent git presence)
+- Re-verified each named blocker against the CURRENT working repo (Read/Grep/git evidence, read-only):
+  (1) reproducibility — PARTIALLY TRUE residual: schema.prisma + 9 verify suites + .github/workflows/ci.yml + test/typecheck/ci scripts exist; root README.md MISSING, .env.example MISSING, no prisma/migrations/ (db push workflow)
+  (2) ignoreBuildErrors:true / reactStrictMode:false — FALSE: next.config.ts has reactStrictMode:true + ignoreBuildErrors:false + output:standalone (the exact "required action" is already in place)
+  (3) Caddyfile reverse_proxy localhost:{query.XTransformPort} — TRUE as code fact; it is the sandbox platform gateway contract the realtime client depends on (io("/?XTransformPort=3003")); hardening = fixed-upstream variant needed only outside the sandbox
+  (4) capture boundary — core complaints STALE (apiGuard session-or-token + ingest gate: 9 window exclusions -> 422, 7 secret rules, 150k cap, OCR, CaptureJob ledger, 400 empty); residual TRUE: zod installed (v4.0.2) but 0 imports in src/app/api (no boundary schema), no explicit route-level body-size cap (image_base64 unbounded), no /api/assets/[id] + /api/jobs/[id], CaptureJob completed-ledger without state machine
+  (5) vault writes — core STALE (writeVaultFile .tmp+rename+cleanup; stamp_slug_shortId filenames); residual TRUE: no vaultSyncStatus/vaultSyncError fields in schema.prisma (0 hits), no user-facing "vault sync pending" labeling
+  (6) sync reconciler — PARTIALLY TRUE (Task 14 residual stands: take:2000, rawContent-only, silent skips, no deletion/rename detection, no failure surfacing)
+  (7) search prototype — TRUE but misclassified as blocker: documented design deviation (Tasks 2/3), roadmap not defect
+  (8) fix lifecycle conflated — FALSE vs current code: Action model (detected|suggested|attempted|verified|failed) + action-verifier.ts + VERIFIED_BY edges + health Gap 1/Gap 7 shipped; audit's /api/actions/* shape differs but capability parity holds
+  (9) MCP/agent not in Git — STALE (GitHub-only): both files exist locally, exercised by verify-v25 G/H; re-push resolves
+  (10) hygiene — TRUE: git ls-files confirms .env tracked + scripts/__pycache__/desktop_agent.cpython-312.pyc tracked; root README.md untracked (only download/ and upload/ copies)
+- Classification into rollout tiers: P0 genuine blockers = .env git-tracked (secret-leak vector on push) + unbounded capture body (zod schema + size cap, DoS/disk-fill vector); P1 should-fix = root README.md + .env.example + vaultSyncStatus fields; P2 legit-but-not-blockers = sync reconciler upgrades, prisma/migrations/, assets/jobs read-back routes + CaptureJob state machine, fixed-upstream Caddyfile for non-sandbox deploy; NOT blockers = FTS5/embedding search, MCP/agent git presence (re-push resolves), OS hotkey (sandbox constraint)
+- No implementation performed per established evaluate-first workflow
+
+Stage Summary:
+- Verdict: the claim is TRUE in intent but MOSTLY STALE in substance. Against the 3-commit GitHub snapshot the auditor inspected, all blockers are real (the public repo is genuinely not reproducibly installable). Against the current working repo (engine v2.5, 239/239): 2 claims false (2, 8), 4 substantially addressed with small residuals (1, 4, 5, 9), 1 partially true (6), 1 true-by-design (7), 1 true-with-context (3 sandbox infra), 1 true (10 hygiene)
+- Honest remaining blocker set before "implementation-ready" is a fair label: git rm --cached .env + *.pyc (P0), zod capture schema + body-size cap at both capture routes (P0), root README.md + .env.example (P1), vaultSyncStatus/vaultSyncError + "vault sync pending" labeling (P1); then re-push from this workspace (source of truth)
+- Audit's required-action snippets require adaptation not pasting (e.g. /api/actions/* vs shipped PATCH /api/items/[id]; Caddy rewrite would break the sandbox gateway contract + realtime)
+- Implementation deferred pending user go-ahead
