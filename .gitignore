@@ -38,6 +38,16 @@ yarn-error.log*
 __pycache__/
 *.pyc
 
+# runtime data — blueprint Phase 0 gate: no tracked database, vault, logs, or
+# generated runtime files. The vault is portable user data, reproduced on disk
+# at runtime, never part of the repo.
+/db/
+*.db
+*.db-journal
+/ProjectBrainVault/
+/logs/
+/tool-results/
+
 # vercel
 .vercel
 
