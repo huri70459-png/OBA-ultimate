@@ -25,6 +25,7 @@ import { ensureSeedDataOnce } from "@/lib/brain/seed";
 import { capture } from "@/lib/brain/pipeline";
 import { compressProjectMemory } from "@/lib/brain/compressor";
 import { checkAgentToken } from "@/lib/brain/settings";
+import { enrichCaptureInput, recordCaptureJob } from "@/lib/brain/ingest";
 
 export const dynamic = "force-dynamic";
 
@@ -99,21 +100,60 @@ export async function POST(req: NextRequest) {
     // 2. brain_api.py-shaped payload (snake_case first, camelCase aliases accepted)
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const rawContent = String(body.raw_content ?? body.rawContent ?? "");
-    if (!rawContent.trim()) {
+    if (!rawContent.trim() && !body.image_base64) {
+      return NextResponse.json({ error: "raw_content is required" }, { status: 400 });
+    }
+
+    // 2.5 v2.5 ingest layer — same Privacy Guard + screenshot OCR as /api/capture
+    //     (an agent must never be the bypass around the privacy layer).
+    const enriched = await enrichCaptureInput({
+      rawContent,
+      itemType: String(body.item_type ?? body.itemType ?? "note"),
+      windowTitle: String(body.window_title ?? body.windowTitle ?? ""),
+      sourceApp: String(body.source_app ?? body.sourceApp ?? "DesktopAgent"),
+      activeFilePath: String(body.active_file_path ?? body.activeFilePath ?? ""),
+      sourceUrl: String(body.source_url ?? body.sourceUrl ?? ""),
+      assetPath: String(body.asset_path ?? body.assetPath ?? ""),
+      visualHint: String(body.visual_hint ?? body.visualHint ?? ""),
+      imageBase64: body.image_base64 ? String(body.image_base64) : "",
+      forcedProjectId: String(body.forced_project_id ?? body.forcedProjectId ?? ""),
+    });
+    if (enriched.blocked) {
+      return NextResponse.json({ status: "blocked", reason: enriched.reason }, { status: 422 });
+    }
+    if (!enriched.rawContent.trim()) {
       return NextResponse.json({ error: "raw_content is required" }, { status: 400 });
     }
 
     // 3. Same pipeline as the workspace UI: route -> analyze -> save -> graph
     const result = await capture({
-      rawContent,
+      rawContent: enriched.rawContent,
       itemType: String(body.item_type ?? body.itemType ?? "note"),
       windowTitle: String(body.window_title ?? body.windowTitle ?? ""),
       sourceApp: String(body.source_app ?? body.sourceApp ?? "DesktopAgent"),
-      visualHint: String(body.visual_hint ?? body.visualHint ?? ""),
+      visualHint: enriched.visualHint,
       activeFilePath: String(body.active_file_path ?? body.activeFilePath ?? ""),
       sourceUrl: String(body.source_url ?? body.sourceUrl ?? ""),
-      assetPath: String(body.asset_path ?? body.assetPath ?? ""),
+      assetPath: enriched.assetPath,
+      forcedProjectId: String(body.forced_project_id ?? body.forcedProjectId ?? ""),
+      extraMetadata: {
+        content_hash: enriched.contentHash,
+        privacy_redactions: enriched.redactionCount,
+        ...(enriched.ocr.used ? { ocr_provider: enriched.ocr.provider } : {}),
+      },
     });
+
+    // 3.5 v2.5: idempotent capture audit ledger
+    const job = await recordCaptureJob({
+      idempotencyKey: enriched.contentHash,
+      payload: {
+        raw_content: enriched.rawContent,
+        item_type: result.item.itemType,
+        window_title: String(body.window_title ?? body.windowTitle ?? ""),
+        source_app: result.item.sourceApp,
+      },
+      resultItemId: result.item.id,
+    }).catch(() => null);
 
     // 4. v2 wiring parity with /api/capture: auto re-compress matched project
     //    (skipped on duplicate merges — content did not change, only the counter).
@@ -147,6 +187,11 @@ export async function POST(req: NextRequest) {
             }
           : null,
       memory_compression: memoryCompression,
+      // v2.5 ingest-layer reporting (parity with /api/capture)
+      content_hash: enriched.contentHash,
+      privacy: { redaction_count: enriched.redactionCount },
+      ...(enriched.ocr.used ? { ocr: { provider: enriched.ocr.provider } } : {}),
+      ...(job ? { capture_job: job } : {}),
     });
   } catch (e) {
     return NextResponse.json(

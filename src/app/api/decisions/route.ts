@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    const gate = await apiGuard(req, { mutation: true });
+    // allowAgentToken: MCP log_decision runs token-only (no session cookie)
+    const gate = await apiGuard(req, { mutation: true, allowAgentToken: true });
     if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
     await ensureSeedDataOnce();
     const body = await req.json();

@@ -8,7 +8,7 @@ import { llmBridge } from "@/lib/brain/llm-bridge";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const gate = await apiGuard(req, { mutation: false });
+  const gate = await apiGuard(req, { mutation: false, allowAgentToken: true });
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
   await ensureSeedDataOnce();
   // Accepts proj_xxx id, slug, or display name (MCP resolve_project_id parity)

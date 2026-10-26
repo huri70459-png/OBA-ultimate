@@ -29,6 +29,7 @@ model Project {
   decisions Decision[]
   edges     GraphEdge[]
   vectors   ItemVector[]
+  actions   Action[]
 }
 
 model Item {
@@ -49,6 +50,8 @@ model Item {
   project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   vector ItemVector?
+  revisions ItemRevision[]
+  actions  Action[]
 
   @@index([projectId, capturedAt])
 }
@@ -135,4 +138,60 @@ model ChatMessage {
   createdAt    DateTime @default(now())
 
   @@index([projectId, createdAt])
+}
+
+// v2.5 — Closed-Loop Action & Fix Verification
+// (detected -> suggested -> attempted -> verified | failed). An Action row is
+// materialized from an item's {error, fix} diagnosis when a verification PATCH
+// lands, so suggested fixes and verified resolutions are separable facts.
+model Action {
+  id               String    @id
+  projectId        String?
+  sourceItemId     String?
+  errorSignature   String    @default("")
+  suggestedCommand String    @default("")
+  status           String    @default("suggested") // detected | suggested | attempted | verified | failed
+  verificationNote String    @default("")
+  verifiedAt       DateTime?
+  createdAt        DateTime  @default(now())
+
+  // Nullable: inbox captures (projectId null) can carry verified fixes too —
+  // the lifecycle ledger must never require triage first.
+  project    Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sourceItem Item?   @relation(fields: [sourceItemId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, status])
+}
+
+// v2.5 — Durable capture audit / idempotency ledger. Every accepted capture
+// records one row keyed by the sanitized content hash: an identical payload
+// landing again folds into the same job (attempts + 1) instead of duplicating.
+model CaptureJob {
+  id             String   @id
+  idempotencyKey String   @unique
+  payloadJson    String   @default("")
+  status         String   @default("completed") // pending | processing | completed | failed
+  attempts       Int      @default(1)
+  lastError      String   @default("")
+  resultItemId   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([status, createdAt])
+}
+
+// v2.5 — Document version history for two-way vault editing. Every content
+// change (editor PATCH or disk-sync pull) snapshots the PREVIOUS rawContent
+// with its hash so edits are auditable and conflict-detectable.
+model ItemRevision {
+  id          String   @id
+  itemId      String
+  contentHash String   @default("")
+  rawContent  String
+  source      String   @default("editor") // editor | disk-sync
+  createdAt   DateTime @default(now())
+
+  item Item @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId, createdAt])
 }

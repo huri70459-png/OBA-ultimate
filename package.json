@@ -10,7 +10,7 @@
     "type-check": "tsc --noEmit",
     "ci": "npm run lint && npm run type-check && npm run build",
     "test:ops": "node scripts/verify-ops.mjs",
-    "test:regression": "node scripts/verify-blueprint.mjs && node scripts/verify-upgrade.mjs && node scripts/verify-v2.mjs && node scripts/verify-v21.mjs && node scripts/verify-v22.mjs && node scripts/verify-enterprise.mjs && node scripts/verify-ops.mjs && node scripts/verify-realtime.mjs",
+    "test:regression": "node scripts/verify-blueprint.mjs && node scripts/verify-upgrade.mjs && node scripts/verify-v2.mjs && node scripts/verify-v21.mjs && node scripts/verify-v22.mjs && node scripts/verify-enterprise.mjs && node scripts/verify-ops.mjs && node scripts/verify-realtime.mjs && node scripts/verify-v25.mjs",
     "db:push": "prisma db push --accept-data-loss",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

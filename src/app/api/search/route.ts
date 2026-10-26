@@ -6,7 +6,7 @@ import { resolveProjectId, searchVaultHybrid, type SearchMode } from "@/lib/brai
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const gate = await apiGuard(req, { mutation: false });
+  const gate = await apiGuard(req, { mutation: false, allowAgentToken: true });
   if (!gate.ok) return NextResponse.json({ error: gate.error, results: [] }, { status: gate.status });
   await ensureSeedDataOnce();
   const q = req.nextUrl.searchParams.get("q") ?? "";

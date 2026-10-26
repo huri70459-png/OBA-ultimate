@@ -145,3 +145,73 @@ room-mismatched payloads dropped. Notes are **ephemeral** — persisted history
 remains `POST /api/ask/stream` + `GET/DELETE /api/chat`. The service is
 optional infrastructure: when it is down, clients degrade silently after ≤4
 bounded reconnect attempts and the UI hides live affordances.
+
+## 7. v2.5 — Privacy Guard, Vision OCR, Two-Way Editing, Closed-Loop Fixes, MCP
+
+### `POST /api/capture` (+ `POST /api/agent/capture`) — ingest now runs the privacy layer
+
+```jsonc
+// NEW request fields
+{ "image_base64?": string,        // data-URL or bare base64 — persisted to
+                                  // ProjectBrainVault/**/assets/ + vision OCR
+  "forced_project_id?": string }  // id | slug | name — overrides routing (conf 1.0)
+// NEW response fields (additive)
+{ "content_hash": "16-hex",        // optimistic-concurrency token for PATCH
+  "privacy": { "redaction_count": n },
+  "ocr?": { "provider": "openai-vision" | "local-asset-store" },
+  "capture_job": { "id", "status": "completed", "attempts": n } }
+// NEW error: 422 { status: "blocked", reason } — Privacy Guard rejected the
+// source window (1Password/Bitwarden/KeePass/LastPass/incognito/inprivate/
+// keychain/.env). Secrets (sk-, sk-ant-, AIza…, ghp_…, Bearer …, PEM blocks,
+// *_SECRET|PASSWORD|TOKEN|API_KEY= assignments) are scrubbed BEFORE persist.
+```
+
+### `PATCH /api/items/[id]` — two-way editing + fix verification (NEW)
+
+```jsonc
+// request — any subset
+{ "raw_content?": string,   // in-place edit (secret-redacted, revision snapshotted,
+                            // vector re-embedded, vault .md rewritten atomically)
+  "title?": string,
+  "expected_hash?": string, // stale content_hash -> 409
+  "fix_status?": "detected" | "suggested" | "attempted" | "verified" | "failed",
+  "verification_note?": string }
+// responses
+200 { status: "updated", item_id, title, content_hash, revision_created,
+      vault_sync_status: "synced" | "failed" | "skipped", fix_status?, privacy? }
+409 { error: "CONFLICT_DETECTED", message, server_content, server_hash }
+404 unknown item · 400 invalid fix_status
+// side effects: verified fix -> Action row + VERIFIED_BY graph edge;
+//               "failed" reopens the error in health scoring (Gap 1)
+```
+
+### Health scoring delta — closed-loop classification
+
+`GET /api/projects/[id]` healthGaps now includes **"Unverified fix
+suggestions"** (medium) when ≥3 error fixes sit unverified; Gap 1 counts a fix
+as resolved **only when verified**. Metadata keys: `content_hash`,
+`privacy_redactions`, `fix_status`, `verification_note`, `verified_at`,
+`vault_sync_status`, `ocr_provider`.
+
+### External surfaces (token-auth via `x-brain-token` / `Authorization: Bearer`)
+
+- `scripts/mcp_server.mjs` — spec-compliant JSON-RPC 2.0 **stdio MCP server**
+  (initialize / ping / tools/list / tools/call) with 6 tools:
+  `list_projects`, `get_project_context`, `search_project_brain`,
+  `zero_save_capture`, `log_decision`, `verify_fix_outcome`. Register in
+  Cursor / Claude Code / Windsurf with `BRAIN_API_URL` + optional
+  `BRAIN_AGENT_TOKEN` env.
+- `scripts/desktop_agent.py` — cross-platform agent (`--once` / `--screenshot`
+  / `--watch` / `--check`): OS window detection, client-side privacy guard +
+  secret redaction (defense in depth — the server re-checks), screen capture
+  to base64 for the OCR pipeline, and an offline JSONL spool
+  (`~/.project-brain-spool.jsonl`) flushed on next successful send.
+
+**Review delta (v2.5 bundle):** `schema.txt`'s wholesale replacement
+(BrainProject/BrainItem renames + snake_case `@map`s, dropping `Setting` /
+`UserAccount` / `ChatMessage`) was **rejected** — it would have wiped auth,
+settings, chat history and all data on `db push`. Only the three genuinely
+new models were merged additively in the repo's naming convention:
+`Action`, `CaptureJob`, `ItemRevision`. The bundle's
+`PATCH /api/items/[id]` was adapted to the shipped model names, the atomic
+vault writer, and the FIXED_BY edge convention.

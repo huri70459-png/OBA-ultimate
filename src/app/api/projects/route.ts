@@ -6,7 +6,8 @@ import { getAllProjects, upsertProject } from "@/lib/brain/store";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const gate = await apiGuard(req, { mutation: false });
+  // allowAgentToken: MCP list_projects / desktop agent --check run token-only
+  const gate = await apiGuard(req, { mutation: false, allowAgentToken: true });
   if (!gate.ok) return NextResponse.json({ error: gate.error, projects: [] }, { status: gate.status });
   await ensureSeedDataOnce();
   const projects = await getAllProjects();

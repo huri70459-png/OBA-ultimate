@@ -2,59 +2,9 @@
 
 > Regenerated from captures; repeated exact captures are folded into occurrence counts.
 
-## 2026-10-26 · 100 unique captures / 160 occurrences
+## 2026-10-26 · 100 unique captures / 170 occurrences
 
-### Session 1 · 02:26–02:35
-- **[SESSION] Work Session 2026-10-25 · 18:24–02:26 · 690 captures** — Rolled up 690 captures (415 terminals, 259 notes, 16 screenshots) · topics: error, cannot, dependency, find
-- **[TERMINAL] Error: Missing Node dependency 'dotenv'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
-- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792981573207'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792981573207`
-- **[NOTE] Grocery triage probe 1792981573339: buy oat milk and coffee beans** — [fast-memory-structurer] Grocery triage probe 1792981573339: buy oat milk and coffee beans
-- **[TERMINAL] SyntaxError: Unexpected end of JSON input while parsing ga** — [codex-agent] Diagnosed SyntaxError -> Suggested Fix: `Inspect stack trace for SyntaxError`
-- **[TERMINAL] Error: Missing Node dependency 'dotenv'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
-- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792981577737'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792981577737`
-- **[NOTE] Grocery triage probe 1792981577858: buy oat milk and coffee beans** — [fast-memory-structurer] Grocery triage probe 1792981577858: buy oat milk and coffee beans
-- **[TERMINAL] Error: Missing Node dependency 'dedup-suite-1792981578249'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-suite-1792981578249`
-- **[NOTE] Error: Missing Node dependency 'dedup-suite-1792981578249'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-suite-1792981578249`
-- **[TERMINAL] Error: Missing Node dependency 'aged-probe-1792981578249'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add aged-probe-1792981578249`
-- **[NOTE] Random grocery note: buy oat milk and coffee beans tomorrow [prob** — [fast-memory-structurer] Random grocery note: buy oat milk and coffee beans tomorrow [probe 1792981578249]
-- **[TERMINAL] Error: Missing Node dependency 'dotenv'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
-- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792981580606'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792981580606`
-- **[NOTE] Grocery triage probe 1792981580726: buy oat milk and coffee beans** — [fast-memory-structurer] Grocery triage probe 1792981580726: buy oat milk and coffee beans
-- **[TERMINAL] Error: Missing Node dependency 'window-probe-1792981581007'** ×2 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add window-probe-1792981581007`
-- **[NOTE] v22-evidence-1792981581007: deployment fix — pnpm add dotenv then** — [codex-agent] v22-evidence-1792981581007: deployment fix — pnpm add dotenv then redeploy gateway.mjs on Render
-- **[TERMINAL] Error: Missing Node dependency 'dotenv'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
-- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792981584261'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792981584261`
-- **[NOTE] Grocery triage probe 1792981584394: buy oat milk and coffee beans** — [fast-memory-structurer] Grocery triage probe 1792981584394: buy oat milk and coffee beans
-- **[NOTE] Decision: Use Render over Railway for worker hosting** — [reasoning-architect] Decision: Use Render over Railway for worker hosting Alternatives: Railway, Fly.io, AWS ECS
-- **[TERMINAL] Error: Missing Node dependency 'dotenv'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
-- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792981593795'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792981593795`
-- **[NOTE] Grocery triage probe 1792981594025: buy oat milk and coffee beans** — [fast-memory-structurer] Grocery triage probe 1792981594025: buy oat milk and coffee beans
-- **[SESSION] Work Session 2026-10-24 · 05:27–10:26 · 27 captures** — Rolled up 27 captures (27 terminals) · topics: error, cannot, dependency, find
-- **[SESSION] Work Session 2026-10-25 · 18:24–02:26 · 714 captures** — Rolled up 714 captures (430 terminals, 268 notes, 16 screenshots) · topics: error, cannot, dependency, find
-- **[TERMINAL] Error: Missing Node dependency 'dotenv'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
-- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792981597818'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792981597818`
-- **[NOTE] Grocery triage probe 1792981597954: buy oat milk and coffee beans** — [fast-memory-structurer] Grocery triage probe 1792981597954: buy oat milk and coffee beans
-- **[TERMINAL] SyntaxError: Unexpected end of JSON input while parsing ga** — [codex-agent] Diagnosed SyntaxError -> Suggested Fix: `Inspect stack trace for SyntaxError`
-- **[TERMINAL] Error: Missing Node dependency 'dotenv'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
-- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792981602464'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792981602464`
-- **[NOTE] Grocery triage probe 1792981602601: buy oat milk and coffee beans** — [fast-memory-structurer] Grocery triage probe 1792981602601: buy oat milk and coffee beans
-- **[TERMINAL] Error: Missing Node dependency 'dedup-suite-1792981603015'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-suite-1792981603015`
-- **[NOTE] Error: Missing Node dependency 'dedup-suite-1792981603015'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-suite-1792981603015`
-- **[TERMINAL] Error: Missing Node dependency 'aged-probe-1792981603015'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add aged-probe-1792981603015`
-- **[NOTE] Random grocery note: buy oat milk and coffee beans tomorrow [prob** — [fast-memory-structurer] Random grocery note: buy oat milk and coffee beans tomorrow [probe 1792981603015]
-- **[TERMINAL] Error: Missing Node dependency 'dotenv'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
-- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792981605396'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792981605396`
-- **[NOTE] Grocery triage probe 1792981605517: buy oat milk and coffee beans** — [fast-memory-structurer] Grocery triage probe 1792981605517: buy oat milk and coffee beans
-- **[TERMINAL] Error: Missing Node dependency 'window-probe-1792981605843'** ×2 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add window-probe-1792981605843`
-- **[NOTE] v22-evidence-1792981605843: deployment fix — pnpm add dotenv then** — [codex-agent] v22-evidence-1792981605843: deployment fix — pnpm add dotenv then redeploy gateway.mjs on Render
-- **[TERMINAL] Error: Missing Node dependency 'dotenv'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
-- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792981609220'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792981609220`
-- **[NOTE] Grocery triage probe 1792981609347: buy oat milk and coffee beans** — [fast-memory-structurer] Grocery triage probe 1792981609347: buy oat milk and coffee beans
-- **[NOTE] Decision: Use Render over Railway for worker hosting** — [reasoning-architect] Decision: Use Render over Railway for worker hosting Alternatives: Railway, Fly.io, AWS ECS
-- **[TERMINAL] Error: Missing Node dependency 'dotenv'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
-- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792981664865'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792981664865`
-- **[NOTE] Grocery triage probe 1792981664992: buy oat milk and coffee beans** — [fast-memory-structurer] Grocery triage probe 1792981664992: buy oat milk and coffee beans
-- **[SESSION] Work Session 2026-10-24 · 05:27–10:26 · 28 captures** — Rolled up 28 captures (28 terminals) · topics: error, cannot, dependency, find
+### Session 1 · 02:27–02:35
 - **[SESSION] Work Session 2026-10-25 · 18:24–02:27 · 738 captures** — Rolled up 738 captures (445 terminals, 277 notes, 16 screenshots) · topics: error, cannot, dependency, find
 - **[TERMINAL] Error: Missing Node dependency 'dotenv'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
 - **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792981669508'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792981669508`
@@ -67,7 +17,7 @@
 - **[NOTE] Error: Missing Node dependency 'dedup-suite-1792981674432'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-suite-1792981674432`
 - **[TERMINAL] Error: Missing Node dependency 'aged-probe-1792981674432'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add aged-probe-1792981674432`
 - **[NOTE] Random grocery note: buy oat milk and coffee beans tomorrow [prob** — [fast-memory-structurer] Random grocery note: buy oat milk and coffee beans tomorrow [probe 1792981674432]
-- **[SCREENSHOT] Error: Missing Node dependency 'dotenv'** ×9 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
+- **[SCREENSHOT] Error: Missing Node dependency 'dotenv'** ×19 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
 - **[TERMINAL] Error: Missing Node dependency 'dotenv'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
 - **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792981677401'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792981677401`
 - **[NOTE] Grocery triage probe 1792981677525: buy oat milk and coffee beans** — [fast-memory-structurer] Grocery triage probe 1792981677525: buy oat milk and coffee beans
@@ -104,4 +54,56 @@
 - **[TERMINAL] Error: Missing Node dependency 'dotenv'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
 - **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792981783239'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792981783239`
 - **[NOTE] Grocery triage probe 1792981783358: buy oat milk and coffee beans** — [fast-memory-structurer] Grocery triage probe 1792981783358: buy oat milk and coffee beans
+- **[TERMINAL] Error: Missing Node dependency 'dotenv'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
+- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792982117746'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792982117746`
+- **[NOTE] Grocery triage probe 1792982117938: buy oat milk and coffee beans** — [fast-memory-structurer] Grocery triage probe 1792982117938: buy oat milk and coffee beans
+
+### Session 2 · 04:05–04:16
+- **[SESSION] Work Session 2026-10-24 · 05:27–10:28 · 30 captures** — Rolled up 30 captures (30 terminals) · topics: error, cannot, dependency, find
+- **[SESSION] Work Session 2026-10-25 · 18:24–02:35 · 789 captures** — Rolled up 789 captures (477 terminals, 295 notes, 17 screenshots) · topics: error, cannot, dependency, find
+- **[NOTE] Decision: Use Render over Railway for worker hosting** — [reasoning-architect] Decision: Use Render over Railway for worker hosting Alternatives: Railway, Fly.io, AWS ECS
+- **[TERMINAL] Error: Missing Node dependency 'dotenv'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
+- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792988134951'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792988134951`
+- **[NOTE] Grocery triage probe 1792988135085: buy oat milk and coffee beans** — [fast-memory-structurer] Grocery triage probe 1792988135085: buy oat milk and coffee beans
+- **[SESSION] Work Session 2026-10-26 · 04:15–04:15 · 4 captures** — Rolled up 4 captures (2 notes, 2 terminals) · topics: error, railway, worker, 14
+- **[TERMINAL] Error: Missing Node dependency 'dotenv'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
+- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792988140089'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792988140089`
+- **[NOTE] Grocery triage probe 1792988140382: buy oat milk and coffee beans** — [fast-memory-structurer] Grocery triage probe 1792988140382: buy oat milk and coffee beans
+- **[TERMINAL] SyntaxError: Unexpected end of JSON input while parsing ga** — [codex-agent] Diagnosed SyntaxError -> Suggested Fix: `Inspect stack trace for SyntaxError`
+- **[TERMINAL] Error: Missing Node dependency 'dotenv'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
+- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792988145525'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792988145525`
+- **[NOTE] Grocery triage probe 1792988145638: buy oat milk and coffee beans** — [fast-memory-structurer] Grocery triage probe 1792988145638: buy oat milk and coffee beans
+- **[TERMINAL] Error: Missing Node dependency 'dedup-suite-1792988146089'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-suite-1792988146089`
+- **[NOTE] Error: Missing Node dependency 'dedup-suite-1792988146089'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-suite-1792988146089`
+- **[TERMINAL] Error: Missing Node dependency 'aged-probe-1792988146089'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add aged-probe-1792988146089`
+- **[NOTE] Random grocery note: buy oat milk and coffee beans tomorrow [prob** — [fast-memory-structurer] Random grocery note: buy oat milk and coffee beans tomorrow [probe 1792988146089]
+- **[TERMINAL] Error: Missing Node dependency 'dotenv'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
+- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792988149600'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792988149600`
+- **[NOTE] Grocery triage probe 1792988149745: buy oat milk and coffee beans** — [fast-memory-structurer] Grocery triage probe 1792988149745: buy oat milk and coffee beans
+- **[TERMINAL] Error: Missing Node dependency 'window-probe-1792988150064'** ×2 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add window-probe-1792988150064`
+- **[NOTE] v22-evidence-1792988150064: deployment fix — pnpm add dotenv then** — [codex-agent] v22-evidence-1792988150064: deployment fix — pnpm add dotenv then redeploy gateway.mjs on Render
+- **[TERMINAL] Error: Missing Node dependency 'dotenv'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
+- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792988152866'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792988152866`
+- **[NOTE] Grocery triage probe 1792988152988: buy oat milk and coffee beans** — [fast-memory-structurer] Grocery triage probe 1792988152988: buy oat milk and coffee beans
+- **[NOTE] Decision: Use Render over Railway for worker hosting** — [reasoning-architect] Decision: Use Render over Railway for worker hosting Alternatives: Railway, Fly.io, AWS ECS
+- **[TERMINAL] Error: Missing Node dependency 'dotenv'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
+- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792988182006'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792988182006`
+- **[NOTE] Grocery triage probe 1792988182155: buy oat milk and coffee beans** — [fast-memory-structurer] Grocery triage probe 1792988182155: buy oat milk and coffee beans
+- **[SESSION] Work Session 2026-10-26 · 04:15–04:16 · 27 captures** — Rolled up 27 captures (16 terminals, 11 notes) · topics: error, cannot, dependency, find
+- **[TERMINAL] Error: Missing Node dependency 'dotenv'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
+- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792988186877'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792988186877`
+- **[NOTE] Grocery triage probe 1792988186995: buy oat milk and coffee beans** — [fast-memory-structurer] Grocery triage probe 1792988186995: buy oat milk and coffee beans
+- **[TERMINAL] SyntaxError: Unexpected end of JSON input while parsing ga** — [codex-agent] Diagnosed SyntaxError -> Suggested Fix: `Inspect stack trace for SyntaxError`
+- **[TERMINAL] Error: Missing Node dependency 'dotenv'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
+- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792988191752'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792988191752`
+- **[NOTE] Grocery triage probe 1792988191858: buy oat milk and coffee beans** — [fast-memory-structurer] Grocery triage probe 1792988191858: buy oat milk and coffee beans
+- **[TERMINAL] Error: Missing Node dependency 'dedup-suite-1792988192265'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-suite-1792988192265`
+- **[NOTE] Error: Missing Node dependency 'dedup-suite-1792988192265'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-suite-1792988192265`
+- **[TERMINAL] Error: Missing Node dependency 'aged-probe-1792988192265'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add aged-probe-1792988192265`
+- **[NOTE] Random grocery note: buy oat milk and coffee beans tomorrow [prob** — [fast-memory-structurer] Random grocery note: buy oat milk and coffee beans tomorrow [probe 1792988192265]
+- **[TERMINAL] Error: Missing Node dependency 'dotenv'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`
+- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792988194539'** ×3 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792988194539`
+- **[NOTE] Grocery triage probe 1792988194655: buy oat milk and coffee beans** — [fast-memory-structurer] Grocery triage probe 1792988194655: buy oat milk and coffee beans
+- **[TERMINAL] Error: Missing Node dependency 'window-probe-1792988194965'** ×2 — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add window-probe-1792988194965`
+- **[NOTE] v22-evidence-1792988194965: deployment fix — pnpm add dotenv then** — [codex-agent] v22-evidence-1792988194965: deployment fix — pnpm add dotenv then redeploy gateway.mjs on Render
 - **[TERMINAL] Error: Missing Node dependency 'dotenv'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dotenv`

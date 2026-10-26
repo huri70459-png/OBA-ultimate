@@ -115,4 +115,5 @@ export async function apiFetch<T>(url: string, options: ApiFetchOptions = {}): P
 export const apiGet = <T,>(url: string) => apiFetch<T>(url);
 export const apiPost = <T,>(url: string, body?: unknown) => apiFetch<T>(url, { method: "POST", body });
 export const apiPut = <T,>(url: string, body?: unknown) => apiFetch<T>(url, { method: "PUT", body });
+export const apiPatch = <T,>(url: string, body?: unknown) => apiFetch<T>(url, { method: "PATCH", body });
 export const apiDelete = <T,>(url: string) => apiFetch<T>(url, { method: "DELETE" });

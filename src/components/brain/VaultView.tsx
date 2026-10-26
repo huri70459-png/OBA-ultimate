@@ -7,7 +7,7 @@
 // dangerouslySetInnerHTML) so pasted markup can't create XSS risk.
 
 import { useEffect, useState } from "react";
-import { Copy, Save, Sparkles } from "lucide-react";
+import { Copy, Pencil, Save, ShieldCheck, Sparkles, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { analyzeCapture } from "@/lib/brain/analyzer";
 import { routeAiModel } from "@/lib/brain/model-routing";
@@ -39,6 +39,12 @@ export const VaultView = () => {
   const [windowTitle, setWindowTitle] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // v2.5 two-way editing — when set, Save PATCHes this item in-place
+  // (with its content_hash as the optimistic-concurrency token) instead of
+  // creating a new capture.
+  const [editingItem, setEditingItem] = useState<BrainItem | null>(null);
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
+
   // v2.1 inbox triage state
   const [triageTarget, setTriageTarget] = useState<Record<string, string>>({});
   const [triagingId, setTriagingId] = useState<string | null>(null);
@@ -67,6 +73,20 @@ export const VaultView = () => {
     };
   }, [body, itemType, windowTitle, title]);
 
+  const startEdit = (item: BrainItem) => {
+    setEditingItem(item);
+    setTitle(item.title);
+    setBody(item.rawContent);
+    setItemType(item.itemType === "session" ? "note" : item.itemType);
+    setWindowTitle("");
+  };
+
+  const cancelEdit = () => {
+    setEditingItem(null);
+    setTitle("");
+    setBody("");
+  };
+
   const save = async () => {
     if (!body.trim()) {
       toast({ title: "Nothing to capture", description: "Write or paste content first.", variant: "destructive" });
@@ -74,6 +94,38 @@ export const VaultView = () => {
     }
     setSaving(true);
     try {
+      // v2.5: editing an existing note PATCHes it in place (two-way sync);
+      // otherwise the classic zero-save capture flow runs.
+      if (editingItem) {
+        const res = await fetch(`/api/items/${editingItem.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            raw_content: body,
+            title: title || editingItem.title,
+            ...(typeof editingItem.metadata.content_hash === "string"
+              ? { expected_hash: editingItem.metadata.content_hash }
+              : {}),
+          }),
+        });
+        const data = await res.json();
+        if (res.status === 409) {
+          toast({
+            title: "Conflict — note changed elsewhere",
+            description: "This note was edited on disk or in another tab. Reload it and re-apply your edit.",
+            variant: "destructive",
+          });
+          return;
+        }
+        if (!res.ok) throw new Error(data.error || "Update failed");
+        toast({
+          title: "Note updated in place",
+          description: data.vault_sync_status === "synced" ? "Vault markdown re-synced to disk." : "SQLite updated.",
+        });
+        cancelEdit();
+        await refreshAll();
+        return;
+      }
       const res = await fetch("/api/capture", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -104,6 +156,30 @@ export const VaultView = () => {
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  // v2.5: closed-loop fix verification — mark a suggested fix
+  // attempted/verified/failed without leaving the vault.
+  const verifyFix = async (item: BrainItem, fixStatus: "attempted" | "verified" | "failed") => {
+    setVerifyingId(item.id);
+    try {
+      const res = await fetch(`/api/items/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fix_status: fixStatus }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Verification failed");
+      toast({
+        title: fixStatus === "verified" ? "Fix verified — loop closed" : `Fix marked ${fixStatus}`,
+        description: fixStatus === "verified" ? "VERIFIED_BY edge added to the knowledge graph." : "Health scores will reflect the new status.",
+      });
+      await refreshAll();
+    } catch (e) {
+      toast({ title: "Verification failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setVerifyingId(null);
     }
   };
 
@@ -187,6 +263,7 @@ export const VaultView = () => {
             const style = itemTypeStyle(item.itemType);
             const Icon = style.icon;
             const status = typeof item.metadata.triage_status === "string" ? item.metadata.triage_status : "open";
+            const fixStatus = typeof item.metadata.fix_status === "string" ? item.metadata.fix_status : "";
             return (
               <div key={item.id} className="group px-3 py-2.5 transition-colors hover:bg-accent/40">
                 <div className="flex items-center gap-2">
@@ -195,6 +272,14 @@ export const VaultView = () => {
                     {item.title}
                   </span>
                   <OccurrenceBadge metadata={item.metadata} />
+                  <button
+                    onClick={() => startEdit(item)}
+                    aria-label={`Edit ${item.title} in the editor`}
+                    title="Edit in the editor (PATCH in place)"
+                    className="shrink-0 rounded p-0.5 text-muted-foreground/70 opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus:opacity-100 group-hover:opacity-100"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
                   <span className="shrink-0 text-[10px] text-muted-foreground/70">
                     {shortTime(item.capturedAt)}
                   </span>
@@ -203,9 +288,44 @@ export const VaultView = () => {
                   {item.structuredSummary || truncate(item.rawContent, 120)}
                 </p>
                 {typeof item.metadata.fix === "string" && (
-                  <div className="ml-5 mt-1.5 inline-flex items-center gap-1 rounded border border-warning/30 bg-warning/10 px-1.5 py-0.5">
-                    <Sparkles className="h-3 w-3 text-warning" />
-                    <code className="text-[10px] text-warning">{truncate(item.metadata.fix, 30)}</code>
+                  <div className="ml-5 mt-1.5 flex flex-wrap items-center gap-1">
+                    <div className="inline-flex items-center gap-1 rounded border border-warning/30 bg-warning/10 px-1.5 py-0.5">
+                      <Sparkles className="h-3 w-3 text-warning" />
+                      <code className="text-[10px] text-warning">{truncate(item.metadata.fix, 30)}</code>
+                    </div>
+                    {fixStatus === "verified" ? (
+                      <span className="inline-flex items-center gap-1 rounded border border-success/40 bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold text-success">
+                        <ShieldCheck className="h-3 w-3" /> Verified
+                      </span>
+                    ) : (
+                      <>
+                        {fixStatus && (
+                          <span
+                            className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold ${
+                              fixStatus === "failed"
+                                ? "border-destructive/40 bg-destructive/10 text-destructive"
+                                : "border-border bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            {fixStatus}
+                          </span>
+                        )}
+                        <button
+                          onClick={() => verifyFix(item, "verified")}
+                          disabled={verifyingId === item.id}
+                          className="rounded border border-success/40 bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold text-success transition-colors hover:bg-success/20 disabled:opacity-50"
+                        >
+                          Verify
+                        </button>
+                        <button
+                          onClick={() => verifyFix(item, "failed")}
+                          disabled={verifyingId === item.id}
+                          className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                        >
+                          Fail
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -269,6 +389,21 @@ export const VaultView = () => {
 
       {/* Editor column */}
       <div className="brain-scroll flex min-w-0 flex-1 flex-col gap-3 overflow-y-auto p-4 select-text md:p-5">
+        {/* v2.5: edit-in-place banner — Save PATCHes instead of capturing */}
+        {editingItem && (
+          <div className="flex items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2">
+            <span className="min-w-0 truncate text-xs text-foreground/90">
+              Editing “{editingItem.title}” — saving patches this note in place (two-way sync, conflict-checked)
+            </span>
+            <button
+              onClick={cancelEdit}
+              aria-label="Cancel editing"
+              className="flex shrink-0 items-center gap-1 rounded border border-border bg-muted px-2 py-1 text-[10px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <X className="h-3 w-3" /> Cancel
+            </button>
+          </div>
+        )}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <input
             type="text"
@@ -294,10 +429,14 @@ export const VaultView = () => {
             <button
               onClick={save}
               disabled={saving}
-              className="flex items-center gap-1.5 rounded bg-success px-3 py-1.5 text-xs font-medium text-success-foreground transition-colors hover:bg-success/80 disabled:opacity-50"
+              className={`flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+                editingItem
+                  ? "bg-primary text-primary-foreground hover:bg-primary-400"
+                  : "bg-success text-success-foreground hover:bg-success/80"
+              }`}
             >
               <Save className="h-3.5 w-3.5" />
-              {saving ? "Saving…" : "Save to Vault (Zero-Tag)"}
+              {saving ? "Saving…" : editingItem ? "Save Changes (In-Place)" : "Save to Vault (Zero-Tag)"}
             </button>
           </div>
         </div>

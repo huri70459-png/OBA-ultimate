@@ -12,6 +12,9 @@ import type { BrainProject, CompressionReport, LlmBackend, ProjectDetails } from
 
 export type WorkspaceTab = "dashboard" | "vault" | "timeline" | "graph" | "context";
 
+/** Monotonic id for loadDetails requests — only the latest may touch state. */
+let latestDetailsRequestId = 0;
+
 interface DialogState {
   captureOpen: boolean;
   newProjectOpen: boolean;
@@ -100,11 +103,17 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   loadDetails: async (id) => {
     const target = id ?? get().selectedId;
     if (!target) return;
+    // v2.5: request-id guard — when the user switches projects rapidly, a slow
+    // response for an OLD project must never overwrite the details of the
+    // currently selected one (out-of-order fetch race).
+    const requestId = ++latestDetailsRequestId;
     set({ loadingDetails: true });
     try {
       const data = await apiGet<ProjectDetails>(`/api/projects/${target}`);
+      if (requestId !== latestDetailsRequestId || get().selectedId !== target) return; // stale
       set({ details: data, loadingDetails: false });
     } catch {
+      if (requestId !== latestDetailsRequestId) return; // a newer request owns the state
       set({ details: null, loadingDetails: false });
     }
   },

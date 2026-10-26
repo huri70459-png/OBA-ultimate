@@ -15,8 +15,8 @@ export async function GET() {
     const llmBackend = await llmBridge.detectActiveBackend();
     return NextResponse.json({
       status: "online",
-      engine: "Project Brain OS v2.4 (Ops: Telemetry + Feature Flags + Feedback + CI/CD)",
-      version: "2.4",
+      engine: "Project Brain OS v2.5 (Privacy Guard + Vision OCR + Closed-Loop Fixes + Two-Way Editing + MCP)",
+      version: "2.5",
       llm_backend: llmBackend,
       // v2.2: runtime-tunable configuration echoed for the UI + verify suites
       config: {

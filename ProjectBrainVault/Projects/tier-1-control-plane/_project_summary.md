@@ -1,10 +1,10 @@
 # Tier-1 Control Plane — Compressed Project Brain
 
-- **Health Score:** 92/100 (EXCELLENT)
+- **Health Score:** 88/100 (EXCELLENT)
 - **Unique Captures Indexed:** 100 (100 observed occurrences after duplicate folding)
 - **Composition:** 38 notes, 7 screenshots, 47 terminal logs
 - **Decisions Logged:** 25
-- **Last Compressed:** 2026-10-26T02:28:22.210Z
+- **Last Compressed:** 2026-10-26T04:16:32.598Z
 
 ## 1. Compressed Rolling Memory (Tier-1 Prompt Payload)
 Compressed memory for **Tier-1 Control Plane** (100 captures: 47 terminals, 38 notes, 8 sessions, 7 screenshots; auto-synthesized by the Memory Compression Daemon).
@@ -14,16 +14,30 @@ Active themes across recent captures: playwright, screenshots, decision, instead
 
 ## Recent Activity (last 14 days)
 - 100 captures on record.
-- Latest work session: Work Session 2026-10-25 · 21:27–02:28 · 377 captures
+- Latest work session: Work Session 2026-10-26 · 04:15–04:16 · 15 captures
 
 ## Active Decisions (do not violate)
-- **v2 Verify Decision 1792981701485**: Keep verification artifacts out of the live vault (Reason: Deterministic suites must not pollute user-facing memory)
-- **Decision: Use Playwright trace viewer instead of raw screens**: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792981698 (Reason: Easier DOM replay)
-- **Decision: Use Playwright trace viewer instead of raw screens**: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792981693 (Reason: Easier DOM replay)
-- **Decision: Use Playwright trace viewer instead of raw screens**: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792981689 (Reason: Easier DOM replay)
-- **Decision: Use Playwright trace viewer instead of raw screens**: Decision: Use Playwright trace viewer instead of raw screenshots (rev 179298167
+- **v2 Verify Decision 1792988192090**: Keep verification artifacts out of the live vault (Reason: Deterministic suites must not pollute user-facing memory)
+- **Decision: Use Playwright trace viewer instead of raw screens**: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792988190 (Reason: Easier DOM replay)
+- **Decision: Use Playwright trace viewer instead of raw screens**: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792988185 (Reason: Easier DOM replay)
+- **Decision: Use Playwright trace viewer instead of raw screens**: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792988180 (Reason: Easier DOM replay)
+- **Decision: Use Playwright trace viewer instead of raw screens**: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792988151
 
 ## 2. Key Architectural Decisions
+- **v2 Verify Decision 1792988192090**: Keep verification artifacts out of the live vault *(Reason: Deterministic suites must not pollute user-facing memory)*
+- **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792988190092) *(Reason: Easier DOM replay)*
+- **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792988185626) *(Reason: Easier DOM replay)*
+- **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792988180758) *(Reason: Easier DOM replay)*
+- **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792988151761) *(Reason: Easier DOM replay)*
+- **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792988148403) *(Reason: Easier DOM replay)*
+- **v2 Verify Decision 1792988145897**: Keep verification artifacts out of the live vault *(Reason: Deterministic suites must not pollute user-facing memory)*
+- **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792988144345) *(Reason: Easier DOM replay)*
+- **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792988138124) *(Reason: Easier DOM replay)*
+- **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792988133685) *(Reason: Easier DOM replay)*
+- **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792982116246) *(Reason: Easier DOM replay)*
+- **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792981781423) *(Reason: Easier DOM replay)*
+- **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792981707247) *(Reason: Easier DOM replay)*
+- **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792981703875) *(Reason: Easier DOM replay)*
 - **v2 Verify Decision 1792981701485**: Keep verification artifacts out of the live vault *(Reason: Deterministic suites must not pollute user-facing memory)*
 - **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792981698945) *(Reason: Easier DOM replay)*
 - **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792981693682) *(Reason: Easier DOM replay)*
@@ -35,22 +49,24 @@ Active themes across recent captures: playwright, screenshots, decision, instead
 - **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792981668354) *(Reason: Easier DOM replay)*
 - **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792981663364) *(Reason: Easier DOM replay)*
 - **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792981608150) *(Reason: Easier DOM replay)*
-- **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792981604335) *(Reason: Easier DOM replay)*
-- **v2 Verify Decision 1792981602804**: Keep verification artifacts out of the live vault *(Reason: Deterministic suites must not pollute user-facing memory)*
-- **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792981601321) *(Reason: Easier DOM replay)*
-- **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792981596684) *(Reason: Easier DOM replay)*
-- **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792981592694) *(Reason: Easier DOM replay)*
-- **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792981583083) *(Reason: Easier DOM replay)*
-- **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792981579588) *(Reason: Easier DOM replay)*
-- **v2 Verify Decision 1792981578050**: Keep verification artifacts out of the live vault *(Reason: Deterministic suites must not pollute user-facing memory)*
-- **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792981576659) *(Reason: Easier DOM replay)*
-- **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792981572120) *(Reason: Easier DOM replay)*
-- **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792981568146) *(Reason: Easier DOM replay)*
-- **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792981521206) *(Reason: Easier DOM replay)*
-- **Decision: Use Playwright trace viewer instead of raw screenshots **: Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792981517560) *(Reason: Easier DOM replay)*
-- **v2 Verify Decision 1792981516020**: Keep verification artifacts out of the live vault *(Reason: Deterministic suites must not pollute user-facing memory)*
 
 ## 3. Known Bug Fixes & Actionable Remedies
+- Error: Missing Node dependency 'dedup-suite-1792988192265' -> `pnpm add dedup-suite-1792988192265`
+- Error: Missing Node dependency 'dedup-probe-1792988191752' -> `pnpm add dedup-probe-1792988191752`
+- Error: Missing Node dependency 'dedup-probe-1792988186877' -> `pnpm add dedup-probe-1792988186877`
+- Error: Missing Node dependency 'dedup-probe-1792988182006' -> `pnpm add dedup-probe-1792988182006`
+- Error: Missing Node dependency 'playwright' -> `pnpm add playwright`
+- Error: Missing Node dependency 'dedup-probe-1792988152866' -> `pnpm add dedup-probe-1792988152866`
+- Error: Missing Node dependency 'dedup-probe-1792988149600' -> `pnpm add dedup-probe-1792988149600`
+- Error: Missing Node dependency 'dedup-suite-1792988146089' -> `pnpm add dedup-suite-1792988146089`
+- Error: Missing Node dependency 'dedup-probe-1792988145525' -> `pnpm add dedup-probe-1792988145525`
+- Error: Missing Node dependency 'dedup-probe-1792988140089' -> `pnpm add dedup-probe-1792988140089`
+- Error: Missing Node dependency 'dedup-probe-1792988134951' -> `pnpm add dedup-probe-1792988134951`
+- Error: Missing Node dependency 'playwright' -> `pnpm add playwright`
+- Error: Missing Node dependency 'dedup-probe-1792982117746' -> `pnpm add dedup-probe-1792982117746`
+- Error: Missing Node dependency 'dedup-probe-1792981783239' -> `pnpm add dedup-probe-1792981783239`
+- Error: Missing Node dependency 'dedup-probe-1792981708459' -> `pnpm add dedup-probe-1792981708459`
+- Error: Missing Node dependency 'dedup-probe-1792981705176' -> `pnpm add dedup-probe-1792981705176`
 - Error: Missing Node dependency 'dedup-suite-1792981701750' -> `pnpm add dedup-suite-1792981701750`
 - Error: Missing Node dependency 'dedup-probe-1792981701071' -> `pnpm add dedup-probe-1792981701071`
 - Error: Missing Node dependency 'dedup-probe-1792981695426' -> `pnpm add dedup-probe-1792981695426`
@@ -89,25 +105,10 @@ Active themes across recent captures: playwright, screenshots, decision, instead
 - Error: Missing Node dependency 'dedup-suite-1792980806890' -> `pnpm add dedup-suite-1792980806890`
 - Error: Missing Node dependency 'dedup-probe-1792980806376' -> `pnpm add dedup-probe-1792980806376`
 - Error: Missing Node dependency 'dedup-probe-1792980802467' -> `pnpm add dedup-probe-1792980802467`
-- Error: Missing Node dependency 'dedup-probe-1792980799055' -> `pnpm add dedup-probe-1792980799055`
-- Error: Missing Node dependency 'playwright' -> `pnpm add playwright`
-- Error: Missing Node dependency 'dedup-probe-1792980709470' -> `pnpm add dedup-probe-1792980709470`
-- Error: Missing Node dependency 'dedup-probe-1792980694084' -> `pnpm add dedup-probe-1792980694084`
-- Error: Missing Node dependency 'dedup-probe-1792980691228' -> `pnpm add dedup-probe-1792980691228`
-- Error: Missing Node dependency 'dedup-suite-1792980689472' -> `pnpm add dedup-suite-1792980689472`
-- Error: Missing Node dependency 'dedup-probe-1792980689041' -> `pnpm add dedup-probe-1792980689041`
-- Error: Missing Node dependency 'dedup-probe-1792980685526' -> `pnpm add dedup-probe-1792980685526`
-- Error: Missing Node dependency 'dedup-probe-1792980682459' -> `pnpm add dedup-probe-1792980682459`
-- Error: Missing Node dependency 'playwright' -> `pnpm add playwright`
-- Error: Missing Node dependency 'dedup-probe-1792980672887' -> `pnpm add dedup-probe-1792980672887`
-- Error: Missing Node dependency 'dedup-probe-1792980669911' -> `pnpm add dedup-probe-1792980669911`
-- Error: Missing Node dependency 'dedup-suite-1792980667868' -> `pnpm add dedup-suite-1792980667868`
-- Error: Missing Node dependency 'dedup-probe-1792980667436' -> `pnpm add dedup-probe-1792980667436`
-- Error: Missing Node dependency 'dedup-probe-1792980664030' -> `pnpm add dedup-probe-1792980664030`
-- Error: Missing Node dependency 'dedup-probe-1792980660894' -> `pnpm add dedup-probe-1792980660894`
 
 ## 4. Knowledge Gaps & Recommendations
 - ⚠️ Unresolved error captures piling up — 8 error captures have no logged fix — log the fix or decision that resolved them
+- ⚠️ Unverified fix suggestions — 54 suggested fixes were never verified — close the loop (attempted / verified / failed via the item actions or MCP verify_fix_outcome) so health reflects reality
 
 ## 5. Key Files
 - gateway.mjs, notes.md, browser-repair.mjs

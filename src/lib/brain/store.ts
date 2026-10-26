@@ -3,7 +3,7 @@
 // + REAL on-disk Obsidian-style vault (v2: two-way markdown disk sync)
 
 import { randomUUID } from "crypto";
-import { mkdir, readFile, rename, writeFile } from "fs/promises";
+import { mkdir, readFile, rename, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { db } from "@/lib/db";
 import {
@@ -24,6 +24,8 @@ import type {
   TimelineEntry,
   TriageResult,
 } from "./types";
+import { classifyFixVerification } from "./action-verifier";
+import { contentHashOf } from "./privacy-redactor";
 
 interface ProjectRow {
   id: string;
@@ -118,14 +120,19 @@ export function buildItemMarkdown(input: {
   }) + body;
 }
 
-/** Writes a file inside the vault (creates parent dirs); returns the relative path on success. */
+/** Writes a file inside the vault (creates parent dirs) — ATOMIC: the write
+ *  lands on a `.tmp` sibling first and is renamed into place, so a crash or
+ *  disk-full mid-write can never leave a truncated vault note (v2.5). */
 export async function writeVaultFile(relativePath: string, content: string): Promise<string | null> {
+  const abs = resolveVaultPath(relativePath);
+  const tmp = `${abs}.tmp`;
   try {
-    const abs = resolveVaultPath(relativePath);
     await mkdir(path.dirname(abs), { recursive: true });
-    await writeFile(abs, content, "utf-8");
+    await writeFile(tmp, content, "utf-8");
+    await rename(tmp, abs);
     return relativePath;
   } catch {
+    await unlink(tmp).catch(() => {}); // best-effort cleanup of the orphan .tmp
     return null; // never let disk failures break the engine
   }
 }
@@ -303,7 +310,13 @@ export async function resolveProjectId(identifier: string): Promise<string | nul
 // ZERO-SAVE ITEM CAPTURE (real Vault .md file on disk, Obsidian-compatible)
 // ==========================================
 
-function vaultFilePath(project: BrainProject | null, itemType: string, title: string, now: Date): string {
+function vaultFilePath(
+  project: BrainProject | null,
+  itemType: string,
+  title: string,
+  now: Date,
+  itemId: string
+): string {
   const stamp = `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, "0")}${String(
     now.getUTCDate()
   ).padStart(2, "0")}_${String(now.getUTCHours()).padStart(2, "0")}${String(now.getUTCMinutes()).padStart(
@@ -311,7 +324,10 @@ function vaultFilePath(project: BrainProject | null, itemType: string, title: st
     "0"
   )}${String(now.getUTCSeconds()).padStart(2, "0")}`;
   const fileSlug = slugify(title).slice(0, 50);
-  const filename = `${stamp}_${fileSlug}.md`;
+  // v2.5: the item's short id makes every filename unique — two captures of
+  // the same title within the same second can no longer overwrite each other.
+  const shortId = itemId.replace(/[^a-zA-Z0-9]/g, "").slice(-6);
+  const filename = `${stamp}_${fileSlug}_${shortId}.md`;
   if (project) {
     const subfolder = ["screenshot", "clip", "terminal"].includes(itemType) ? "captures" : "notes";
     return `ProjectBrainVault/Projects/${project.slug}/${subfolder}/${filename}`;
@@ -346,7 +362,7 @@ export async function saveItem(input: {
       rawContent: input.rawContent,
       structuredSummary: input.structuredSummary ?? "",
       visualDescription: input.visualDescription ?? "",
-      filePath: vaultFilePath(project, itemType, input.title, now),
+      filePath: vaultFilePath(project, itemType, input.title, now, itemId),
       assetPath: input.assetPath ?? "",
       sourceApp: input.sourceApp ?? "",
       sourceUrl: input.sourceUrl ?? "",
@@ -532,6 +548,22 @@ export async function syncMarkdownEditsFromDisk(): Promise<DiskSyncStats> {
     }
 
     if (newRaw && newRaw !== r.rawContent.trim()) {
+      // v2.5: snapshot the previous content into the revision history before
+      // the disk edit overwrites it (source: disk-sync). Best-effort — a
+      // revision-logging failure must never break the sync itself.
+      try {
+        await db.itemRevision.create({
+          data: {
+            id: `rev_${randomUUID().replace(/-/g, "").slice(0, 12)}`,
+            itemId: r.id,
+            contentHash: contentHashOf(r.rawContent),
+            rawContent: r.rawContent.slice(0, 100_000),
+            source: "disk-sync",
+          },
+        });
+      } catch {
+        // revision ledger is best-effort
+      }
       await db.item.update({ where: { id: r.id }, data: { rawContent: newRaw } });
       stats.sqlite_records_updated += 1;
 
@@ -862,13 +894,16 @@ export function computeHealthAndGaps(
     Math.min(20, items.length * 5);
 
   // Gap 1 — unresolved error captures (blueprint: error surge without documented fix)
+  // v2.5: closed-loop verification — a fix only resolves the error once it is
+  // VERIFIED; a FAILED fix attempt reopens the error.
+  const fixClass = classifyFixVerification(items);
   const unresolved = items.filter((it) => {
     const isError = /error|exception|traceback|failed|cannot find|module not found/i.test(
       `${it.title} ${it.rawContent}`
     );
     if (!isError) return false;
-    // metadata is already parsed into an object by toItem
-    return !it.metadata || !it.metadata.fix;
+    if (!it.metadata || !it.metadata.fix) return true;
+    return it.metadata.fix_status === "failed";
   });
   if (unresolved.length >= 3) {
     gaps.push({
@@ -925,6 +960,15 @@ export function computeHealthAndGaps(
     gaps.push({
       gap: "Fixes without a root-cause decision",
       detail: `${resolvedFixes.length} fix(es) logged but no architectural decision explains the root cause — capture the 'why' with 'Decision: ... Reason: ...'`,
+      severity: "medium",
+    });
+  }
+
+  // Gap 7 (v2.5) — closed-loop verification debt: suggested fixes never verified
+  if (fixClass.suggestedUnverifiedFixes >= 3) {
+    gaps.push({
+      gap: "Unverified fix suggestions",
+      detail: `${fixClass.suggestedUnverifiedFixes} suggested fixes were never verified — close the loop (attempted / verified / failed via the item actions or MCP verify_fix_outcome) so health reflects reality`,
       severity: "medium",
     });
   }

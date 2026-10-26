@@ -1,0 +1,154 @@
+// File: prisma/schema.prisma
+// Drop this into prisma/schema.prisma in Raydevstu/PROJECT-BRAIN-OS
+// Run: npx prisma generate && npx prisma db push
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model BrainProject {
+  id             String          @id
+  name           String
+  slug           String          @unique
+  rootPath       String          @default("") @map("root_path")
+  keywords       String          @default("[]") // JSON string[]
+  gitRemotes     String          @default("[]") @map("git_remotes") // JSON string[]
+  rollingSummary String          @default("") @map("rolling_summary")
+  healthScore    Int             @default(100) @map("health_score")
+  updatedAt      DateTime        @default(now()) @updatedAt @map("updated_at")
+
+  items          BrainItem[]
+  decisions      BrainDecision[]
+  actions        BrainAction[]
+
+  @@map("projects")
+}
+
+model BrainItem {
+  id                String         @id
+  projectId         String?        @map("project_id")
+  itemType          String         @map("item_type") // 'screenshot' | 'note' | 'clip' | 'terminal' | 'doc' | 'commit'
+  title             String         @default("")
+  rawContent        String         @default("") @map("raw_content")
+  structuredSummary String         @default("") @map("structured_summary")
+  filePath          String         @default("") @map("file_path")
+  assetPath         String         @default("") @map("asset_path")
+  sourceApp         String         @default("Manual") @map("source_app")
+  sourceUrl         String         @default("") @map("source_url")
+  metadata          String         @default("{}") // JSON object (includes syncStatus, contentHash, ocrRegions, etc.)
+  capturedAt        DateTime       @default(now()) @map("captured_at")
+  updatedAt         DateTime       @default(now()) @updatedAt @map("updated_at")
+
+  project           BrainProject?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  decisions         BrainDecision[]
+  vector            BrainItemVector?
+  revisions         BrainItemRevision[]
+  actions           BrainAction[]
+
+  @@index([projectId, capturedAt(sort: Desc)])
+  @@index([capturedAt(sort: Desc)])
+  @@map("items")
+}
+
+model BrainDecision {
+  id           String        @id
+  projectId    String        @map("project_id")
+  title        String
+  decision     String
+  alternatives String        @default("[]") // JSON string[]
+  reasoning    String
+  outcome      String        @default("proposed") // 'proposed' | 'accepted' | 'rejected' | 'superseded' | 'deprecated'
+  supersededBy String?       @map("superseded_by")
+  sourceItemId String?       @map("source_item_id")
+  decidedAt    DateTime      @default(now()) @map("decided_at")
+
+  project      BrainProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sourceItem   BrainItem?    @relation(fields: [sourceItemId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, decidedAt(sort: Desc)])
+  @@map("decisions")
+}
+
+model BrainGraphEdge {
+  id           String   @id
+  sourceId     String   @map("source_id")
+  targetId     String   @map("target_id")
+  relationType String   @map("relation_type") // 'CAUSED_BY' | 'SOLVED_BY' | 'FIXED_BY' | 'VERIFIED_BY' | 'BELONGS_TO' | 'MENTIONS' | 'SUPERSEDES'
+  weight       Float    @default(1.0)
+  verified     Boolean  @default(false)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([sourceId])
+  @@index([targetId])
+  @@map("graph_edges")
+}
+
+model BrainItemVector {
+  itemId      String    @id @map("item_id")
+  projectId   String?   @map("project_id")
+  model       String    @default("brain-hash-v1")
+  dimensions  Int       @default(128)
+  vectorJson  String    @map("vector_json") // JSON number[]
+  contentHash String    @default("") @map("content_hash")
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  item        BrainItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("item_vectors")
+}
+
+// Durable Capture Queue + Vault Sync Recovery
+model BrainCaptureJob {
+  id          String   @id
+  idempotencyKey String @unique @map("idempotency_key")
+  payloadJson String   @map("payload_json")
+  status      String   @default("pending") // 'pending' | 'processing' | 'completed' | 'failed'
+  attempts    Int      @default(0)
+  lastError   String   @default("") @map("last_error")
+  resultItemId String? @map("result_item_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@map("capture_jobs")
+}
+
+// Closed-Loop Action & Fix Verification (Detected -> Suggested -> Attempted -> Verified / Failed)
+model BrainAction {
+  id            String       @id
+  projectId     String       @map("project_id")
+  sourceItemId  String?      @map("source_item_id")
+  errorSignature String      @default("") @map("error_signature")
+  suggestedCommand String    @map("suggested_command")
+  status        String       @default("suggested") // 'detected' | 'suggested' | 'attempted' | 'verified' | 'failed'
+  verificationNote String    @default("") @map("verification_note")
+  verifiedAt    DateTime?    @map("verified_at")
+  createdAt     DateTime     @default(now()) @map("created_at")
+
+  project       BrainProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sourceItem    BrainItem?   @relation(fields: [sourceItemId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, status])
+  @@map("actions")
+}
+
+// Document Version History & Two-Way Sync Conflict Recovery
+model BrainItemRevision {
+  id          String    @id
+  itemId      String    @map("item_id")
+  contentHash String    @map("content_hash")
+  rawContent  String    @map("raw_content")
+  source      String    @default("editor") // 'editor' | 'disk-sync' | 'capture-fold'
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  item        BrainItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId, createdAt(sort: Desc)])
+  @@map("item_revisions")
+}

@@ -9,8 +9,8 @@ import { randomUUID } from "crypto";
 import { detectProject, routeAiModel } from "./router";
 import { analyzeCapture, formatHudToast } from "./analyzer";
 import { findRecentDuplicate, recordDuplicateOccurrence } from "./dedup";
-import { addGraphEdge, logDecision, saveItem } from "./store";
-import type { BrainDecision, CaptureResult } from "./types";
+import { addGraphEdge, getProjectById, logDecision, resolveProjectId, saveItem } from "./store";
+import type { BrainDecision, CaptureResult, ProjectMatch } from "./types";
 
 export async function capture(input: {
   rawContent: string;
@@ -21,6 +21,12 @@ export async function capture(input: {
   sourceUrl?: string;
   assetPath?: string;
   visualHint?: string;
+  /** v2.5: explicit project override (MCP zero_save_capture / desktop agent) —
+   *  accepts proj_xxx id, slug, or display name; confidence becomes 1.0. */
+  forcedProjectId?: string;
+  /** v2.5: extra metadata stamped by the ingest layer (content_hash,
+   *  privacy_redactions, ocr_provider) — merged over the pipeline defaults. */
+  extraMetadata?: Record<string, unknown>;
 }): Promise<CaptureResult> {
   const {
     rawContent = "",
@@ -31,10 +37,26 @@ export async function capture(input: {
     sourceUrl = "",
     assetPath = "",
     visualHint = "",
+    forcedProjectId = "",
+    extraMetadata = {},
   } = input;
 
   // 1. Auto-Detect Project
-  const projMatch = await detectProject({ rawContent, windowTitle, activeFilePath, sourceUrl });
+  let projMatch: ProjectMatch = await detectProject({ rawContent, windowTitle, activeFilePath, sourceUrl });
+  // v2.5: forced_project_id (MCP / desktop agent) overrides detection entirely.
+  if (forcedProjectId) {
+    const forcedId = await resolveProjectId(forcedProjectId);
+    const forcedProject = forcedId ? await getProjectById(forcedId) : null;
+    if (forcedProject) {
+      projMatch = {
+        projectId: forcedProject.id,
+        projectName: forcedProject.name,
+        projectSlug: forcedProject.slug,
+        confidence: 1,
+        reasons: ["forced_project_id override"],
+      };
+    }
+  }
   const projectId = projMatch.projectId;
 
   // 1.5 v2.1 Exact Duplicate Folding — same project/inbox + same type + same canonical
@@ -88,6 +110,8 @@ export async function capture(input: {
         ? { error: analysis.actionMetadata.error, rootCause: analysis.actionMetadata.rootCause ?? "" }
         : {}),
       ...(analysis.actionMetadata.fix ? { fix: analysis.actionMetadata.fix } : {}),
+      // v2.5: ingest-layer stamps (privacy hash, redactions, OCR provider)
+      ...extraMetadata,
     },
   });
 
