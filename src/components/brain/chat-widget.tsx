@@ -16,10 +16,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Markdown from "react-markdown";
-import { BookOpen, Eraser, Send, Sparkles, User } from "lucide-react";
+import { BookOpen, Eraser, Send, Sparkles, User, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiDelete, apiGet } from "@/lib/api-client";
 import { queryClient } from "@/lib/query-client";
+import {
+  connectRealtime,
+  type RealtimeHandle,
+  type RealtimeNote,
+  type RealtimePeer,
+} from "@/lib/realtime";
 import type { ChatRecord, GroundedSource, GroundedStreamEvent } from "@/lib/brain/types";
 import { trackEvent } from "@/lib/telemetry";
 import { shortTime } from "./ui-shared";
@@ -35,6 +41,8 @@ interface ChatMessage {
   sources?: GroundedSource[];
   failed?: boolean;
   pending?: boolean;
+  /** Set on ephemeral realtime notes received from live peers. */
+  peerAuthor?: RealtimePeer;
 }
 
 interface ChatWidgetProps {
@@ -116,21 +124,104 @@ export const ChatWidget = ({ projectId, className = "" }: ChatWidgetProps) => {
   const [stage, setStage] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
 
-  // Thread switched (project changed): drop any in-flight local exchange.
+  // ---- realtime layer (socket.io): presence / typing / live peer notes ----
+  // Ephemeral by design: the persisted thread stays in the TanStack cache
+  // above; peer notes live in their own buffer and never masquerade as
+  // server-persisted history. The service is optional — when it is down
+  // the widget simply renders without live affordances.
+  const [liveConnected, setLiveConnected] = useState(false);
+  const [peersOnline, setPeersOnline] = useState<RealtimePeer[]>([]);
+  const [peerTyping, setPeerTyping] = useState<string[]>([]);
+  const [peerNotes, setPeerNotes] = useState<RealtimeNote[]>([]);
+  const rtRef = useRef<RealtimeHandle | null>(null);
+  const typingActiveRef = useRef(false);
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const handle = connectRealtime(`chat:${threadKey}`, {
+      onPresence: (peers) => {
+        setPeersOnline(peers);
+        // A peer that left cannot still be typing — prune stale names.
+        setPeerTyping((names) => names.filter((n) => peers.some((p) => p.name === n)));
+      },
+      onTyping: ({ user, typing }) =>
+        setPeerTyping((names) =>
+          typing
+            ? names.includes(user.name)
+              ? names
+              : [...names, user.name]
+            : names.filter((n) => n !== user.name),
+        ),
+      onNote: (note) =>
+        // Idempotent merge — same guard pattern as the stream "saved" flush:
+        // StrictMode may re-run updaters, so id/clientId collisions no-op.
+        setPeerNotes((notes) =>
+          notes.some((n) => n.id === note.id || (Boolean(note.clientId) && n.clientId === note.clientId))
+            ? notes
+            : [...notes, note],
+        ),
+      onStatus: setLiveConnected,
+    });
+    rtRef.current = handle;
+    return () => {
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+      if (typingActiveRef.current) {
+        typingActiveRef.current = false;
+        handle.emitTyping(false);
+      }
+      rtRef.current = null;
+      handle.close();
+    };
+  }, [threadKey]);
+
+  // Thread switched (project changed): drop any in-flight local exchange
+  // and the ephemeral realtime buffers for the previous thread.
   useEffect(() => {
     setLive([]);
     setStage(null);
     setBusy(false);
+    setPeerNotes([]);
+    setPeerTyping([]);
+    setPeersOnline([]);
   }, [threadKey]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [live, stage, history.data]);
+  }, [live, stage, history.data, peerNotes, peerTyping]);
 
   const messages: ChatMessage[] = [
     ...(history.data?.messages ?? []).map(recordToMessage),
+    ...peerNotes.map(
+      (n): ChatMessage => ({ id: n.id, role: "user", content: n.content, ts: n.ts, peerAuthor: n.author }),
+    ),
     ...live,
   ];
+
+  /** Relay "is typing" to peers (no-op when the realtime service is down). */
+  const emitTypingChange = useCallback((typing: boolean) => {
+    if (typing === typingActiveRef.current) return;
+    typingActiveRef.current = typing;
+    rtRef.current?.emitTyping(typing);
+  }, []);
+
+  /** Input handler — broadcasts typing start, auto-stops after 1.4s idle. */
+  const handleInputChange = useCallback(
+    (value: string) => {
+      setInput(value);
+      if (!rtRef.current) return;
+      if (value && !typingActiveRef.current) emitTypingChange(true);
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+      if (value.trim()) {
+        typingTimerRef.current = setTimeout(() => {
+          typingActiveRef.current = false;
+          rtRef.current?.emitTyping(false);
+        }, 1400);
+      } else {
+        emitTypingChange(false);
+      }
+    },
+    [emitTypingChange],
+  );
 
   const run = useCallback(
     async (mode: "ask" | "synthesize", rawQuery?: string) => {
@@ -141,6 +232,14 @@ export const ChatWidget = ({ projectId, className = "" }: ChatWidgetProps) => {
       setStage("searching vault evidence…");
       const userLiveId = nextId();
       setLive((l) => [...l, { id: userLiveId, role: "user", content: query, ts: new Date().toISOString() }]);
+
+      // Live layer: stop the typing signal and broadcast the question as an
+      // ephemeral note so connected peers see it instantly (the persisted
+      // copy still lands through the stream's "saved" flush below).
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+      typingActiveRef.current = false;
+      rtRef.current?.emitTyping(false);
+      rtRef.current?.sendNote({ clientId: userLiveId, content: query, kind: "question" });
 
       let assistantId: string | null = null;
       const ensureAssistant = () => {
@@ -317,15 +416,26 @@ export const ChatWidget = ({ projectId, className = "" }: ChatWidgetProps) => {
             answers cite vault evidence only
           </span>
         </div>
-        {hasThread && (
-          <button
-            onClick={() => void clearThread()}
-            className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
-            aria-label="Clear conversation"
-          >
-            <Eraser className="h-3 w-3" /> Clear
-          </button>
-        )}
+        <div className="flex shrink-0 items-center gap-1.5">
+          {liveConnected && peersOnline.length > 0 && (
+            <span
+              className="flex items-center gap-1 rounded-full border border-success/30 bg-success/10 px-1.5 py-0.5 text-[9px] font-medium text-success"
+              title={peersOnline.map((p) => p.name).join(", ")}
+            >
+              <Users className="h-2.5 w-2.5" />
+              {peersOnline.length} live
+            </span>
+          )}
+          {hasThread && (
+            <button
+              onClick={() => void clearThread()}
+              className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+              aria-label="Clear conversation"
+            >
+              <Eraser className="h-3 w-3" /> Clear
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Message stream */}
@@ -357,7 +467,18 @@ export const ChatWidget = ({ projectId, className = "" }: ChatWidgetProps) => {
           const badge = badgeFor(msg);
           return msg.role === "user" ? (
             <div key={msg.id} className="flex items-start justify-end gap-2.5">
-              <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-primary/20 px-3 py-2">
+              <div
+                className={`max-w-[85%] rounded-2xl rounded-br-sm px-3 py-2 ${
+                  msg.peerAuthor
+                    ? "border border-dashed border-primary/40 bg-primary/10"
+                    : "bg-primary/20"
+                }`}
+              >
+                {msg.peerAuthor && (
+                  <p className="mb-0.5 text-[9px] font-semibold uppercase tracking-wider text-primary-300">
+                    {msg.peerAuthor.name} · live
+                  </p>
+                )}
                 <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground">
                   {msg.content}
                 </p>
@@ -441,12 +562,28 @@ export const ChatWidget = ({ projectId, className = "" }: ChatWidgetProps) => {
         <div ref={endRef} />
       </div>
 
+      {/* Peer typing indicator (realtime layer) */}
+      {peerTyping.length > 0 && (
+        <div
+          className="flex shrink-0 items-center gap-1.5 px-3.5 pb-1 text-[10px] text-muted-foreground"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="typing-dot h-1.5 w-1.5 rounded-full bg-primary-400" />
+          <span className="typing-dot h-1.5 w-1.5 rounded-full bg-primary-400" style={{ animationDelay: "0.15s" }} />
+          <span className="typing-dot h-1.5 w-1.5 rounded-full bg-primary-400" style={{ animationDelay: "0.3s" }} />
+          <span>
+            {peerTyping.join(", ")} {peerTyping.length > 1 ? "are" : "is"} typing…
+          </span>
+        </div>
+      )}
+
       {/* Input row */}
       <div className="flex shrink-0 items-center gap-1.5 border-t border-border bg-card/60 p-2.5">
         <input
           type="text"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => handleInputChange(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && void run("ask")}
           placeholder="Ask this project's brain…"
           aria-label="Grounded question"

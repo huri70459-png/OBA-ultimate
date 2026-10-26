@@ -56,6 +56,10 @@ interface GraphViewerProps {
   ariaLabel?: string;
   /** Blueprint "Loading State": centered spinner overlay while data loads. */
   loading?: boolean;
+  /** Controlled layout mode — parents that surface their own selector pass this,
+   *  which hides the built-in <select> (the parent owns the control surface). */
+  layout?: GraphLayout;
+  onLayoutChange?: (layout: GraphLayout) => void;
 }
 
 interface Sim {
@@ -304,12 +308,21 @@ export const GraphViewer = ({
   className = "",
   ariaLabel = "Interactive knowledge graph",
   loading = false,
+  layout: controlledLayout,
+  onLayoutChange,
 }: GraphViewerProps) => {
   const { t } = useI18n();
   const svgRef = useRef<SVGSVGElement | null>(null);
 
   // ---- layout mode (force | hierarchy | radial) ----
-  const [layout, setLayout] = useState<GraphLayout>("force");
+  // Uncontrolled by default; the `layout` prop switches the internal <select>
+  // off and lets the parent own the control surface (GraphView tablist).
+  const [internalLayout, setInternalLayout] = useState<GraphLayout>("force");
+  const layout = controlledLayout ?? internalLayout;
+  const setLayout = (next: GraphLayout) => {
+    if (controlledLayout === undefined) setInternalLayout(next);
+    onLayoutChange?.(next);
+  };
   const targetsRef = useRef<Map<string, { x: number; y: number }> | null>(null);
 
   // ---- simulation state (refs: mutated by the rAF loop; painted via state) ----
@@ -640,6 +653,19 @@ export const GraphViewer = ({
                 onPointerEnter={() => !dragRef.current && !panRef.current && setHoverId(n.id)}
                 onPointerLeave={() => setHoverId((h) => (h === n.id ? null : h))}
                 style={{ cursor: "pointer" }}
+                className="outline-none"
+                tabIndex={0}
+                role="button"
+                aria-label={`Node ${n.label || n.id}${n.kind ? ` — ${n.kind}` : ""}`}
+                aria-pressed={selected}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onNodeClick?.(n);
+                  }
+                }}
+                onFocus={() => setHoverId(n.id)}
+                onBlur={() => setHoverId((h) => (h === n.id ? null : h))}
               >
                 {selected && (
                   <circle cx={p.x} cy={p.y} r={r + 5} fill="none" stroke="var(--primary)" strokeWidth={1.4} strokeOpacity={0.9} />
@@ -689,16 +715,18 @@ export const GraphViewer = ({
 
       {/* layout selector + zoom slider (blueprint control set) */}
       <div className="absolute bottom-2 right-2.5 flex items-center gap-2 rounded-lg border border-border bg-card/90 px-2 py-1.5 backdrop-blur">
-        <select
-          value={layout}
-          onChange={(e) => setLayout(e.target.value as GraphLayout)}
-          aria-label="Graph layout algorithm"
-          className="cursor-pointer rounded border border-border bg-background/70 px-1.5 py-0.5 text-[10px] text-foreground focus:outline-none"
-        >
-          <option value="force">{t("graph.layout.force")}</option>
-          <option value="hierarchy">{t("graph.layout.hierarchy")}</option>
-          <option value="radial">{t("graph.layout.radial")}</option>
-        </select>
+        {controlledLayout === undefined && (
+          <select
+            value={layout}
+            onChange={(e) => setLayout(e.target.value as GraphLayout)}
+            aria-label="Graph layout algorithm"
+            className="cursor-pointer rounded border border-border bg-background/70 px-1.5 py-0.5 text-[10px] text-foreground focus:outline-none"
+          >
+            <option value="force">{t("graph.layout.force")}</option>
+            <option value="hierarchy">{t("graph.layout.hierarchy")}</option>
+            <option value="radial">{t("graph.layout.radial")}</option>
+          </select>
+        )}
         <button
           type="button"
           onClick={() => zoomBy(0.8)}

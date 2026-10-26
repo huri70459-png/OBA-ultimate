@@ -75,6 +75,7 @@ const en = {
   "graph.layout.force": "Force-Directed",
   "graph.layout.hierarchy": "Hierarchical",
   "graph.layout.radial": "Radial",
+  "graph.layout.columns": "Columns",
   "graph.zoom": "Zoom",
 };
 
@@ -144,6 +145,7 @@ const zh: Record<MessageKey, string> = {
   "graph.layout.force": "力导向",
   "graph.layout.hierarchy": "层次布局",
   "graph.layout.radial": "放射布局",
+  "graph.layout.columns": "分栏",
   "graph.zoom": "缩放",
 };
 

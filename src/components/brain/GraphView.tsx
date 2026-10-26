@@ -8,6 +8,7 @@
 import { useMemo, useState } from "react";
 import { GitBranch, Plus, Scale } from "lucide-react";
 import type { GraphEdge } from "@/lib/brain/types";
+import { useI18n } from "@/lib/i18n";
 import { useWorkspace } from "./workspace-store";
 import { relationStyle, shortTime, truncate } from "./ui-shared";
 import {
@@ -21,7 +22,9 @@ const GRAPH_W = 820;
 const NODE_H = 52;
 const LABEL_MAX = 26;
 
-type LayoutMode = "force" | "columns";
+/** Force/hierarchy/radial run the interactive GraphViewer; columns is the bipartite SVG. */
+type LayoutMode = "force" | "hierarchy" | "radial" | "columns";
+const LAYOUT_MODES: LayoutMode[] = ["force", "hierarchy", "radial", "columns"];
 
 /** Infer a visual kind for every endpoint from the relation it participates in. */
 export function inferGraph(edges: GraphEdge[]): {
@@ -213,6 +216,7 @@ const BipartiteSVG = ({ edges }: { edges: GraphEdge[] }) => {
 };
 
 export const GraphView = () => {
+  const { t } = useI18n();
   const details = useWorkspace((s) => s.details);
   const openDialog = useWorkspace((s) => s.openDialog);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -268,10 +272,12 @@ export const GraphView = () => {
             {decisions.map((d) => {
               const isOpen = expanded === d.id;
               return (
-                <div
+                <button
                   key={d.id}
-                  className="cursor-pointer rounded-xl border border-border bg-card/60 p-4 transition-colors hover:border-primary/40"
+                  type="button"
+                  aria-expanded={isOpen}
                   onClick={() => setExpanded(isOpen ? null : d.id)}
+                  className="w-full cursor-pointer rounded-xl border border-border bg-card/60 p-4 text-left transition-colors hover:border-primary/40"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-xs font-semibold text-foreground">{d.title}</span>
@@ -304,7 +310,7 @@ export const GraphView = () => {
                     </>
                   )}
                   <p className="mt-2 text-[10px] text-muted-foreground/70">{shortTime(d.decidedAt)}</p>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -323,13 +329,13 @@ export const GraphView = () => {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
-              {/* Layout toggle */}
+              {/* Layout selector — every GraphViewer layout surfaced at the view level */}
               <div
-                className="flex overflow-hidden rounded-lg border border-border"
+                className="flex flex-wrap overflow-hidden rounded-lg border border-border"
                 role="tablist"
                 aria-label="Graph layout"
               >
-                {(["force", "columns"] as LayoutMode[]).map((m) => (
+                {LAYOUT_MODES.map((m) => (
                   <button
                     key={m}
                     role="tab"
@@ -341,7 +347,7 @@ export const GraphView = () => {
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    {m === "force" ? "Force" : "Columns"}
+                    {t(`graph.layout.${m}`)}
                   </button>
                 ))}
               </div>
@@ -365,15 +371,19 @@ export const GraphView = () => {
               No graph edges yet. Capture an error (FIXED_BY), mention a file (MENTIONED_IN), or log
               a decision (DECIDED_ON) to grow the graph.
             </div>
-          ) : layout === "force" ? (
+          ) : layout === "columns" ? (
+            <BipartiteSVG edges={edges} />
+          ) : (
             <>
               <GraphViewer
                 nodes={nodes}
                 links={links}
+                layout={layout}
+                onLayoutChange={(next) => setLayout(next)}
                 selectedId={selectedNodeId}
                 onNodeClick={(n) => setSelectedNodeId((cur) => (cur === n.id ? null : n.id))}
                 height={480}
-                ariaLabel="Interactive force-directed knowledge graph"
+                ariaLabel={`Interactive ${layout} knowledge graph`}
               />
               {selectedNodeId && (
                 <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-3.5">
@@ -409,8 +419,6 @@ export const GraphView = () => {
                 </div>
               )}
             </>
-          ) : (
-            <BipartiteSVG edges={edges} />
           )}
         </div>
       </div>

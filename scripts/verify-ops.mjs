@@ -175,9 +175,13 @@ const metricsBytes = () => (existsSync(metricsFile) ? statSync(metricsFile).size
   const tag = `n${nonce}`;
   await post("/api/metrics", { type: "web_vital", name: `LCP-${tag}`, value: 1234, rating: "good", path: "/" });
   await post("/api/metrics", { type: "web_vital", name: `LCP-${tag}`, value: 2345, rating: "poor", path: "/" });
+  // 50 posts keep the nonced event atop the top-12 count ranking even as real
+  // telemetry events accumulate count>=2 ties (corpus drift guard, F3 family).
   await post("/api/metrics", { type: "event", name: `verify.${tag}`, props: { scope: "ops", pass: true } });
-  await post("/api/metrics", { type: "event", name: `verify.${tag}`, props: { scope: "ops" } });
-  await post("/api/metrics", { type: "api_timing", route: `GET /api/verify-ops-${tag}`, ms: 812, status: 200 });
+  for (let i = 0; i < 49; i++) {
+    await post("/api/metrics", { type: "event", name: `verify.${tag}`, props: { scope: "ops" } });
+  }
+  await post("/api/metrics", { type: "api_timing", route: `GET /api/verify-ops-${tag}`, ms: 550000, status: 200 });
   const summary = await jfetch("/api/metrics");
   const vital = (summary.data?.web_vitals ?? []).find((v) => v.name === `LCP-${tag}`);
   const ev = (summary.data?.events ?? []).find((e) => e.name === `verify.${tag}`);
@@ -194,7 +198,9 @@ const metricsBytes = () => (existsSync(metricsFile) ? statSync(metricsFile).size
   );
   check(
     "F3 api_timing aggregation (p95 + slowest-first ordering)",
-    timing && timing.p95Ms >= 812 && timing.avgMs >= 812,
+    // 550000ms keeps the synthetic probe in the top-10 slowest routes even as
+    // real telemetry accumulates slower-than-812ms rows (corpus drift guard).
+    timing && timing.p95Ms >= 550000 && timing.avgMs >= 550000,
     timing ? `p95=${timing.p95Ms}ms avg=${timing.avgMs}ms errors=${timing.errors}` : "timing row missing"
   );
 

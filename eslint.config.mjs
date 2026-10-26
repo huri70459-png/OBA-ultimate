@@ -1,5 +1,8 @@
 import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 import nextTypescript from "eslint-config-next/typescript";
+// NOTE: eslint-config-next (Next 16) already registers eslint-plugin-jsx-a11y —
+// re-registering it here triggers "Cannot redefine plugin". The strict block
+// below therefore escalates jsx-a11y/* rules against Next's plugin instance.
 
 // ============================================================
 // Project Brain OS — Strict Engineering Discipline (Tier-1 redesign)
@@ -43,10 +46,17 @@ const strictAppRules = {
   "react-hooks/exhaustive-deps": "error",
   "react/jsx-curly-brace-presence": ["error", { props: "never", children: "never" }],
   "react/function-component-definition": ["error", { namedComponents: "arrow-function" }],
+
+  // --- Accessibility (enterprise A11y audit) ---
+  // Interactive custom elements (SVG graph nodes, card rows) must be
+  // keyboard-reachable and carry their semantics explicitly.
+  "jsx-a11y/click-events-have-key-events": "error",
+  "jsx-a11y/no-static-element-interactions": "error",
+  "jsx-a11y/no-noninteractive-element-interactions": "error",
 };
 
 const eslintConfig = [
-  // 1. Next.js recommended base
+  // 1. Next.js recommended base (registers jsx-a11y plugin + recommended rules)
   ...nextCoreWebVitals,
   ...nextTypescript,
 
