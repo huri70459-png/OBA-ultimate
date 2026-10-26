@@ -4,6 +4,7 @@ import { ensureSeedDataOnce } from "@/lib/brain/seed";
 import { capture } from "@/lib/brain/pipeline";
 import { compressProjectMemory } from "@/lib/brain/compressor";
 import { enrichCaptureInput, recordCaptureJob } from "@/lib/brain/ingest";
+import { gateCaptureRequest } from "@/lib/brain/capture-schema";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,14 @@ export async function POST(req: NextRequest) {
     const gate = await apiGuard(req, { mutation: true, allowAgentToken: true });
     if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
     await ensureSeedDataOnce();
-    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+
+    // v2.6 boundary gate — body-size (headers, before read) + zod field caps.
+    // The desktop-agent token path is equally bounded: the gate lives BEFORE
+    // any pipeline work in both capture routes.
+    const rawBody: unknown = await req.json().catch(() => ({}));
+    const boundary = gateCaptureRequest(req, rawBody);
+    if (!boundary.ok) return NextResponse.json(boundary.body, { status: boundary.status });
+    const body = (rawBody ?? {}) as Record<string, unknown>;
 
     // v2.5 ingest layer — Privacy Guard (sensitive windows blocked, secrets
     // scrubbed) + optional screenshot OCR + deterministic content hash.

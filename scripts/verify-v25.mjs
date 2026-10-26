@@ -505,6 +505,16 @@ function runPython(args) {
     `${results.length} checks, engine ${finalHealth.data?.version}`
   );
 
+  // Probe hygiene (Task 16 lesson): leftover "Gap Probe <nonce>" projects and
+  // their items used to accumulate across board runs; combined with stray
+  // single-letter projects they made the router match nearly every capture,
+  // starving the Inbox and breaking verify-blueprint's inbox + selftest #10.
+  // Deleted at the very END of the suite (after I2, whose duplicate-fold
+  // re-post still needs the probe item + project alive). DB rows only —
+  // orphaned vault .md files are intentionally left for disk-sync to ignore.
+  await prisma.item.deleteMany({ where: { projectId: gapPid } });
+  await prisma.project.delete({ where: { id: gapPid } }).catch(() => {});
+
   await prisma.$disconnect();
   console.log(`\n===== verify-v25: ${results.length - failures}/${results.length} checks passed =====`);
   if (failures > 0) {

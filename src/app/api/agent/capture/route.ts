@@ -26,6 +26,7 @@ import { capture } from "@/lib/brain/pipeline";
 import { compressProjectMemory } from "@/lib/brain/compressor";
 import { checkAgentToken } from "@/lib/brain/settings";
 import { enrichCaptureInput, recordCaptureJob } from "@/lib/brain/ingest";
+import { gateCaptureRequest } from "@/lib/brain/capture-schema";
 
 export const dynamic = "force-dynamic";
 
@@ -98,7 +99,12 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. brain_api.py-shaped payload (snake_case first, camelCase aliases accepted)
-    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    //    v2.6 boundary gate — body-size (headers, before read) + zod field caps;
+    //    identical gate to /api/capture so the agent can never bypass it either.
+    const rawBody: unknown = await req.json().catch(() => ({}));
+    const boundary = gateCaptureRequest(req, rawBody);
+    if (!boundary.ok) return NextResponse.json(boundary.body, { status: boundary.status });
+    const body = (rawBody ?? {}) as Record<string, unknown>;
     const rawContent = String(body.raw_content ?? body.rawContent ?? "");
     if (!rawContent.trim() && !body.image_base64) {
       return NextResponse.json({ error: "raw_content is required" }, { status: 400 });

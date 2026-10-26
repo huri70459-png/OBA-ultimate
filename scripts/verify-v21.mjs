@@ -282,6 +282,16 @@ const post = (pathname, body) =>
   const passCount = results.filter((r) => r.status === "PASS").length;
   console.log(`\n================ V2.1 PART A VERIFICATION SUMMARY ================`);
   console.log(`TOTAL: ${results.length} | PASS: ${passCount} | FAIL: ${failures}`);
+
+  // Probe hygiene (Task 16): aged-probe items are 36h-window probes; left in
+  // the corpus they pollute semantic ranking — one once outranked the
+  // blueprint Render screenshot as the top hit of verify-upgrade's semantic
+  // check. Remove ALL aged-probe items (this run's + legacy from earlier
+  // runs). Cascades clean vectors/revisions; orphaned vault .md files are
+  // intentionally left for disk-sync to ignore.
+  const gone = await prisma.item.deleteMany({ where: { rawContent: { contains: "aged-probe-" } } });
+  if (gone.count > 0) console.log(`[cleanup] removed ${gone.count} aged-probe probe item(s)`);
+
   await prisma.$disconnect();
   process.exit(failures > 0 ? 1 : 0);
 })().catch(async (e) => {

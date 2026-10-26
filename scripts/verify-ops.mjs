@@ -15,7 +15,7 @@
  *      persists w/ category+user, GET review feed returns it
  *   H. Final state: all flags back to defaults (no stored overrides)
  */
-import { readFileSync, existsSync, statSync } from "node:fs";
+import { readFileSync, existsSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = "/home/z/my-project";
@@ -172,6 +172,22 @@ const metricsBytes = () => (existsSync(metricsFile) ? statSync(metricsFile).size
   );
 
   // ---- F. Telemetry ingest + aggregation (unique names = deterministic rows) ----
+  // Probe hygiene (third corpus-drift guard, Task 16): every board run leaves
+  // one synthetic 550000ms api_timing row under /api/verify-ops-<nonce>; after
+  // 10 runs the p95-sorted top-10 in GET /api/metrics fills with tied legacy
+  // rows and the fresh probe is sliced off ("timing row missing"). Prune our
+  // OWN synthetic probe rows before posting the fresh one — self-cleaning,
+  // deterministic regardless of how many times the board has run. Safe against
+  // the server: ingest appends per-POST (no held fd), and only rows containing
+  // our synthetic route marker are removed.
+  try {
+    const lines = readFileSync(metricsFile, "utf-8").split("\n").filter(Boolean);
+    // Two synthetic-row families poison two aggregations:
+    //   - "/api/verify-ops-<nonce>" api_timing rows -> p95 top-10 tie crowding (F3)
+    //   - "verify.n<nonce>" event rows, 50 per run  -> top-12 count tie crowding (F2)
+    const keep = lines.filter((l) => !l.includes("/api/verify-ops-") && !l.includes('"name":"verify.n'));
+    if (keep.length !== lines.length) writeFileSync(metricsFile, keep.join("\n") + "\n");
+  } catch {}
   const tag = `n${nonce}`;
   await post("/api/metrics", { type: "web_vital", name: `LCP-${tag}`, value: 1234, rating: "good", path: "/" });
   await post("/api/metrics", { type: "web_vital", name: `LCP-${tag}`, value: 2345, rating: "poor", path: "/" });
