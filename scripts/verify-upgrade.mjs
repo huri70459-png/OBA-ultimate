@@ -102,7 +102,12 @@ async function jfetch(path, opts) {
   check("FTS legacy mode still works", fts.status === 200 && (fts.data.results || []).length > 0, `${fts.data.results.length} fts hit(s)`);
 
   // ---- I. Session items vector-indexed ----
-  const sessSearch = await jfetch(`/api/search?q=${encodeURIComponent("work session rollup captures")}&mode=semantic`);
+  // limit=50 (endpoint max): after many consecutive board runs the corpus
+  // accumulates dozens of identically-phrased "work session" captures from the
+  // suite itself, which flood the default 20-result window before real session
+  // rollups. Sessions carry every query token (title + member titles + "Rolled
+  // up N captures"), so the widened window makes the check corpus-scale-stable.
+  const sessSearch = await jfetch(`/api/search?q=${encodeURIComponent("work session rollup captures")}&mode=semantic&limit=50`);
   const sessHit = (sessSearch.data.results || []).find(r => r.itemType === "session");
   check("Session rollups are semantically searchable", Boolean(sessHit) && (sessHit.similarity ?? 0) > 0, sessHit ? `"${sessHit.title}" sim=${sessHit.similarity?.toFixed?.(3)}` : "no session hit");
 

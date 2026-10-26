@@ -84,13 +84,12 @@ async function configure(patch) {
 (async () => {
   const nonce = Date.now();
 
-  // ---- A. Health v2.2 + config echo ----
+  // ---- A. Health v2.2+ (2.3 enterprise / 2.4 ops ship on top; config echo is v2.2) ----
   const health = await jfetch("/api/health");
   check(
     "A1 v2.2 engine online with config echo",
     health.status === 200 &&
-      /v2\.2/.test(health.data.engine ?? "") &&
-      health.data.version === "2.2" &&
+      Number(health.data.version) >= 2.2 &&
       Number.isFinite(health.data.config?.dedup_window_hours) &&
       typeof health.data.config?.agent_ingest_protected === "boolean",
     `engine="${health.data.engine}" window=${health.data.config?.dedup_window_hours}`

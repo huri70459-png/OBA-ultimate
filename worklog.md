@@ -197,3 +197,30 @@ Work Log:
 Stage Summary:
 - Tier-1 blueprint verdict: 100% of the actionable requirements now implemented — configs/stack/design-system/graph/chat/bento/E2E verified, 2 real gaps (framer-motion animations, light mode) found and closed, deviations documented
 - Board: 148 checks green before AND after changes; theme default stays dark; no engine/API changes
+
+---
+Task ID: 10
+Agent: main (Z.ai)
+Task: Blueprint Phase 3/3 — "Deployment, Monitoring, and Iteration" (v2.4 Ops): review, sandbox-adapt, implement, verify
+
+Work Log:
+- Review verdict (per established workflow): CI/CD -> ADAPT (no Vercel account; local-first SQLite/vault contract needs a persistent host, so the Docker standalone image IS the deployable artifact); APM/web-vitals/analytics/feature-flags/feedback -> SELF-HOSTED adaptations of Datadog/Sentry/LaunchDarkly/GA4; error tracking + structured logging -> ALREADY SHIPPED (v2.3 global handlers + client.log); RUM/distributed tracing -> documented defer with seams
+- src/lib/jsonl.ts: shared JSONL append + tail-read + byte-size helpers, 512KB rotation (<file>.old) — one implementation now backs client.log / metrics.jsonl / feedback.jsonl
+- src/lib/feature-flags.ts: self-hosted registry (3 flags: ops.telemetry_ingest, ui.bento_stagger, vault.cross_project_fixes) — code defaults, Setting-table overrides (flag.<id> rows), BRAIN_FLAG_* env escape hatch, deterministic sha256 %-rollout bucketing (stable A/B assignment); src/lib/feature-flags-client.ts: useFlags/useFlag via TanStack (fail-open to true so gating never regresses)
+- /api/metrics: POST ingest (web_vital | event | api_timing, sanitized + size-capped) gated SERVER-SIDE by ops.telemetry_ingest kill switch (disabled -> {ok:false,disabled:true}, nothing written); GET aggregation (counts, vital avg/max/poor, top events, slowest routes w/ p95 + errors, file size) over last 5k lines
+- /api/feature-flags: GET registry w/ source (stored|env|default); PUT owner-only in enforced mode (validation 400s, reset:true clears override)
+- /api/feedback: POST viewer-writable by design (4..2000 chars, category bug|feature|general, path, user) -> feedback.jsonl; GET owner-only review feed (newest first)
+- Telemetry wiring: providers.tsx useReportWebVitals -> trackWebVital; api-client.ts reports api_timing for calls >400ms or failing (never for /api/metrics — no recursion); trackEvent at 4 sites (capture_saved, chat_answer, feedback_submitted, ui.theme_toggled)
+- UI: Header MessageSquarePlus feedback button -> FeedbackDialog (category chips + textarea, toast, logs to feedback.jsonl — browser-verified end-to-end); SettingsDialog gains FeatureFlagsSection (toggle/reset per flag, owner-gated controls) + TelemetrySection (vitals/events/slow-routes readout) via new OpsPanels.tsx; DashboardView bento stagger gated by useFlag("ui.bento_stagger") (ops-level kill switch proven live in browser: toggle -> API stored:false -> reset -> default)
+- /api/health -> engine v2.4 + uptime_seconds + memory_rss_bytes (uptime probe payload); verify-v22 A1 relaxed to version>=2.2 (same precedent as v2.1->2.2)
+- CI/CD: .github/workflows/ci.yml — npm ci, lint, type-check, prisma generate, build, db push, BOOT standalone server against fresh SQLite, run full test:regression board live, artifact log upload on failure, docker buildx artifact job (push commented until registry secrets); Dockerfile multi-stage (deps->builder->node:20-slim runner) w/ prisma db push entrypoint.sh, db/logs/vault volumes, HEALTHCHECK; .dockerignore
+- package.json 0.3.0: type-check, ci, test:ops, test:regression (all 7 suites)
+- Docs: docs/DEPLOYMENT.md (GitHub-Flow branching, pipeline stages, environments, tag-based rollback, Vercel deviation rationale) + docs/OPERATIONS.md (monitoring map, flag runbook incl. kill-switch drill, feedback triage cadence, event catalog)
+- NEW scripts/verify-ops.mjs 23 checks (A: CI/Docker/scripts/docs artifacts; B: health probe; C: registry+validation; D: override+reset; E: SERVER-SIDE kill switch — bytes unchanged while disabled, instant resume; F: ingest+aggregation math w/ unique nonced names; G: feedback validation+persist+review feed; H: no stored overrides left). Harness fixes during bring-up: A3 checks Dockerfile+entrypoint.sh pair; A5 semver parse; F uses nonced metric names (prior live browser LCP samples collided)
+- Corpus-scale fix: verify-upgrade I-section semantic session search widened to limit=50 — repeated board runs flood the default 20-window with the suite's own identically-phrased captures
+- Verification: verify-ops 23/23; FULL BOARD 171/171 (blueprint 31 + upgrade 21 + v2 20 + v2.1 23 + v2.2 19 + enterprise 34 + ops 23) STABLE ACROSS TWO CONSECUTIVE RUNS; tsc clean; eslint clean
+- Browser-verified (agent-browser): feedback dialog submit -> toast -> JSONL on disk; settings flags panel toggle+reset live; ops telemetry section renders; screenshots scripts/brain-37-v24-settings-ops.png; no console errors
+
+Stage Summary:
+- Blueprint Phase 3 fully implemented as v2.4 in sandbox-adapted form: CI/CD pipeline + Docker artifact + rollback docs; self-hosted APM (web vitals + api timings + product events + aggregation dashboard); self-hosted feature flags w/ real server-side kill switch; in-app feedback funnel w/ owner review feed; ops runbooks
+- Combined regression board: 171 checks green, stable consecutive; engine v2.4; no engine/capture/compression changes

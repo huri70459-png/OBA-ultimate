@@ -21,6 +21,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import type { LlmBackend } from "@/lib/brain/types";
 import { useWorkspace } from "./workspace-store";
+import { FeatureFlagsSection, TelemetrySection } from "./OpsPanels";
 
 interface SecretShape {
   configured: boolean;
@@ -404,6 +405,10 @@ export const SettingsDialog = () => {
                   </button>
                 </div>
               </div>
+
+              {/* v2.4 ops surfaces (blueprint "Feature Flags" + "Custom Metrics") */}
+              <FeatureFlagsSection />
+              <TelemetrySection open={open} />
             </div>
           )}
         </ScrollArea>

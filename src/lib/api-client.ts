@@ -10,6 +10,10 @@
 //   - error normalization  : every failure throws BrainApiError { status, message }
 //   - auth expiry event    : final 401 dispatches "brain:auth-expired" so the
 //                            AuthGate can show the login card (no circular imports)
+//   - API timing telemetry : v2.4 — slow (>400ms) or failing calls report an
+//                            api_timing sample to /api/metrics (blueprint
+//                            "component rendering performance / API response
+//                            times"), never for /api/metrics itself
 
 export class BrainApiError extends Error {
   status: number;
@@ -46,8 +50,24 @@ async function tryRefresh(): Promise<boolean> {
   return refreshInFlight;
 }
 
+/** Fire-and-forget api_timing sample (slow or failing calls only). */
+function reportTiming(url: string, method: string, ms: number, status: number): void {
+  if (url.startsWith("/api/metrics")) return; // never recurse
+  try {
+    void fetch("/api/metrics", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "api_timing", route: `${method} ${url}`, ms, status }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    // Telemetry must never throw.
+  }
+}
+
 export async function apiFetch<T>(url: string, options: ApiFetchOptions = {}): Promise<T> {
   const { method = "GET", body, _retried = false } = options;
+  const startedAt = typeof performance !== "undefined" ? performance.now() : 0;
   const res = await fetch(url, {
     method,
     credentials: "same-origin",
@@ -81,7 +101,12 @@ export async function apiFetch<T>(url: string, options: ApiFetchOptions = {}): P
       const errText = String((data as { error: unknown }).error);
       if (errText) message = errText;
     }
+    if (startedAt) reportTiming(url, method, performance.now() - startedAt, res.status);
     throw new BrainApiError(res.status, message);
+  }
+  if (startedAt) {
+    const ms = performance.now() - startedAt;
+    if (ms > 400) reportTiming(url, method, ms, res.status); // slow-call observability
   }
   return data as T;
 }
@@ -89,4 +114,5 @@ export async function apiFetch<T>(url: string, options: ApiFetchOptions = {}): P
 /** Convenience verbs mirroring the blueprint's apiClient surface. */
 export const apiGet = <T,>(url: string) => apiFetch<T>(url);
 export const apiPost = <T,>(url: string, body?: unknown) => apiFetch<T>(url, { method: "POST", body });
+export const apiPut = <T,>(url: string, body?: unknown) => apiFetch<T>(url, { method: "PUT", body });
 export const apiDelete = <T,>(url: string) => apiFetch<T>(url, { method: "DELETE" });

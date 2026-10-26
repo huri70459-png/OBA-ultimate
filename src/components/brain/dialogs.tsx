@@ -15,6 +15,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import type { BrainItem, CaptureResult, CrossProjectSolution, SelfTestCheck } from "@/lib/brain/types";
+import { trackEvent } from "@/lib/telemetry";
 import { useWorkspace } from "./workspace-store";
 import { itemTypeStyle, shortTime } from "./ui-shared";
 
@@ -57,6 +58,7 @@ export const CaptureDialog = () => {
       } else {
         toast({ title: "Captured — Zero-Save", description: data.toastNotification });
       }
+      trackEvent("capture_saved", { status: data.status, item_type: type });
       setContent("");
       setWindowTitle("");
       close("captureOpen");
@@ -563,6 +565,106 @@ export const SelfTestDialog = () => {
             className="w-full rounded-lg border border-border bg-muted px-4 py-2 text-xs font-semibold text-foreground/90 transition-colors hover:bg-accent disabled:opacity-50"
           >
             {running ? "Running…" : "Run Again"}
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// ==========================================
+// FEEDBACK (v2.4 — blueprint "User Feedback Collection")
+// Low-friction bug/suggestion funnel: every session can submit; the owner
+// reviews the feed later. Nothing leaves the machine (logs/feedback.jsonl).
+// ==========================================
+export const FeedbackDialog = () => {
+  const open = useWorkspace((s) => s.feedbackOpen);
+  const close = useWorkspace((s) => s.closeDialog);
+  const { toast } = useToast();
+  const [message, setMessage] = useState("");
+  const [category, setCategory] = useState<"bug" | "feature" | "general">("general");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    if (message.trim().length < 4) {
+      toast({ title: "Tell us a bit more", description: "At least 4 characters, please.", variant: "destructive" });
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, category, path: window.location.pathname }),
+      });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? `Feedback -> ${res.status}`);
+      }
+      trackEvent("feedback_submitted", { category });
+      toast({ title: "Feedback received", description: "Thank you — it's on the operator's review feed." });
+      setMessage("");
+      close("feedbackOpen");
+    } catch (e) {
+      toast({
+        title: "Could not send feedback",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && close("feedbackOpen")}>
+      <DialogContent className="border-border bg-card text-foreground sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-foreground">Send Feedback</DialogTitle>
+          <DialogDescription className="text-muted-foreground">
+            Report a bug, suggest a feature, or just say what works. Goes straight to the
+            operator&apos;s review feed — no external service involved.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-2">
+          <div className="flex gap-1.5" role="group" aria-label="Feedback category">
+            {(["bug", "feature", "general"] as const).map((c) => (
+              <button
+                key={c}
+                onClick={() => setCategory(c)}
+                aria-pressed={category === c}
+                className={`rounded-full border px-2.5 py-1 text-[11px] font-medium capitalize transition-colors ${
+                  category === c
+                    ? c === "bug"
+                      ? "border-destructive/40 bg-destructive/10 text-destructive"
+                      : c === "feature"
+                        ? "border-success/40 bg-success/10 text-success"
+                        : "border-primary/40 bg-primary/10 text-primary-300"
+                    : "border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+          <textarea
+            rows={5}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="What happened, or what would make Brain OS better?"
+            aria-label="Feedback message"
+            className="w-full resize-none rounded-lg border border-border bg-background/80 p-3 text-xs text-foreground placeholder-muted-foreground/50 focus:border-primary focus:outline-none"
+          />
+        </div>
+
+        <DialogFooter>
+          <button
+            onClick={() => void submit()}
+            disabled={busy || message.trim().length < 4}
+            className="w-full rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary-400 disabled:opacity-50"
+          >
+            {busy ? "Sending…" : "Send Feedback"}
           </button>
         </DialogFooter>
       </DialogContent>

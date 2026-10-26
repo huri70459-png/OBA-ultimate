@@ -1,0 +1,6 @@
+{"ts":"2026-10-26T01:29:54.116Z","message":"Blueprint-ops feedback n1792978193691: the Ops & Telemetry panel is genuinely useful.","category":"feature","path":"/","user":"anonymous"}
+{"ts":"2026-10-26T01:30:28.596Z","message":"Blueprint-ops feedback n1792978228352: the Ops & Telemetry panel is genuinely useful.","category":"feature","path":"/","user":"anonymous"}
+{"ts":"2026-10-26T01:30:54.491Z","message":"Blueprint-ops feedback n1792978254239: the Ops & Telemetry panel is genuinely useful.","category":"feature","path":"/","user":"anonymous"}
+{"ts":"2026-10-26T01:33:48.434Z","message":"Blueprint-ops feedback n1792978428061: the Ops & Telemetry panel is genuinely useful.","category":"feature","path":"/","user":"anonymous"}
+{"ts":"2026-10-26T01:34:10.994Z","message":"Blueprint-ops feedback n1792978450760: the Ops & Telemetry panel is genuinely useful.","category":"feature","path":"/","user":"anonymous"}
+{"ts":"2026-10-26T01:34:33.044Z","message":"Browser verification: feedback funnel works end to end — this entry should land in logs/feedback.jsonl and be visible via GET /api/feedback.","category":"feature","path":"/","user":"anonymous"}

@@ -15,8 +15,8 @@ export async function GET() {
     const llmBackend = await llmBridge.detectActiveBackend();
     return NextResponse.json({
       status: "online",
-      engine: "Project Brain OS v2.2 (Runtime LLM Config + Desktop Agent Ingest + Tunable Dedup)",
-      version: "2.2",
+      engine: "Project Brain OS v2.4 (Ops: Telemetry + Feature Flags + Feedback + CI/CD)",
+      version: "2.4",
       llm_backend: llmBackend,
       // v2.2: runtime-tunable configuration echoed for the UI + verify suites
       config: {
@@ -24,6 +24,10 @@ export async function GET() {
         provider_setting: (await effectiveSetting("llm_provider")) || "auto",
         agent_ingest_protected: Boolean(await effectiveSetting("agent_ingest_token")),
       },
+      // v2.4 (blueprint "Uptime Monitoring"): probe payload for external uptime
+      // checkers (Pingdom/UptimeRobot pattern) — this endpoint IS the probe target.
+      uptime_seconds: Math.round(process.uptime()),
+      memory_rss_bytes: process.memoryUsage().rss,
     });
   } catch (e) {
     return NextResponse.json(

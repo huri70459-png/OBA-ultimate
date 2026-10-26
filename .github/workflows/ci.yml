@@ -1,0 +1,130 @@
+# Project Brain OS — CI/CD (blueprint "Continuous Integration and Continuous
+# Deployment", adapted to this self-hosted appliance).
+#
+# Differences from the blueprint's conceptual Vercel YAML, all deliberate:
+#   - npm (this repo has package-lock.json), not yarn
+#   - `npx prisma generate` before build (the client must exist for next build)
+#   - the TEST stage is REAL: the standalone server boots against a fresh SQLite
+#     database and the full 7-suite regression board (~168 checks) runs against it
+#   - no Vercel deploy step: this deployment target is Docker/self-hosted
+#     (Vercel would also break the local-first vault + SQLite contract);
+#     the Docker image IS the deployable artifact (blueprint "Artifact Generation")
+#   - rollback = re-deploy a previous image tag (see docs/DEPLOYMENT.md)
+
+name: Brain OS CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "src/**"
+      - "prisma/**"
+      - "public/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - "next.config.ts"
+      - "eslint.config.mjs"
+      - "tsconfig.json"
+      - ".github/workflows/*.yml"
+  pull_request:
+    branches: [main, develop]
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build_test_verify:
+    name: Build · Lint · Type-check · Regression board
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install Dependencies (frozen lockfile)
+        run: npm ci
+
+      - name: Lint (strict guardrails — failure halts the pipeline)
+        run: npm run lint
+
+      - name: Type Check (strict tsc — failure halts the pipeline)
+        run: npm run type-check
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Build Next.js Application (standalone artifact)
+        run: npm run build
+
+      - name: Prepare Database (SQLite via Prisma)
+        run: npx prisma db push --skip-generate
+
+      - name: Boot Production Server
+        run: |
+          NODE_ENV=production node .next/standalone/server.js &
+          echo $! > server.pid
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:3000/api/health > /dev/null && break
+            sleep 1
+          done
+          curl -sf http://localhost:3000/api/health
+
+      - name: Run Full Regression Board (~168 checks, 7 suites)
+        run: npm run test:regression
+
+      - name: Collect Logs on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brain-os-logs
+          path: |
+            logs/
+            dev.log
+            server.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Stop Server
+        if: always()
+        run: |
+          if [ -f server.pid ]; then kill "$(cat server.pid)" || true; fi
+
+  docker_artifact:
+    name: Build Docker Artifact (deployable image)
+    needs: build_test_verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Image (proves the artifact compiles)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false # registry push activates when DOCKERHUB_USERNAME/DOCKERHUB_TOKEN secrets exist
+          load: true
+          tags: brain-os:ci-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # To publish, add registry credentials as repo secrets and uncomment:
+      # - name: Login to Docker Hub
+      #   uses: docker/login-action@v3
+      #   with:
+      #     username: ${{ secrets.DOCKERHUB_USERNAME }}
+      #     password: ${{ secrets.DOCKERHUB_TOKEN }}
+      # - name: Push Image
+      #   run: docker tag brain-os:ci-${{ github.sha }} <registry>/brain-os:${{ github.ref_name }} && docker push <registry>/brain-os:${{ github.ref_name }}

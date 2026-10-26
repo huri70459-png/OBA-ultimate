@@ -21,6 +21,7 @@ import { AuthGate } from "@/components/brain/AuthGate";
 import {
   CaptureDialog,
   DecisionDialog,
+  FeedbackDialog,
   NewProjectDialog,
   SearchDialog,
   SelfTestDialog,
@@ -151,6 +152,7 @@ const BrainWorkspacePage = () => {
         <SearchDialog />
         <SelfTestDialog />
         <SettingsDialog />
+        <FeedbackDialog />
       </div>
     </AuthGate>
   );

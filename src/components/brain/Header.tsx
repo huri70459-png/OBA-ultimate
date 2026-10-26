@@ -5,9 +5,10 @@
 // session user menu (auth).
 
 import { useState } from "react";
-import { LogOut, Search, ShieldCheck, Zap, Stethoscope, DatabaseZap, Cpu, Sun, Moon } from "lucide-react";
+import { LogOut, Search, ShieldCheck, Zap, Stethoscope, DatabaseZap, Cpu, Sun, Moon, MessageSquarePlus } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useToast } from "@/hooks/use-toast";
+import { trackEvent } from "@/lib/telemetry";
 import { useI18n } from "@/lib/i18n";
 import { LOCALES, type Locale } from "@/lib/i18n/dictionaries";
 import { useAuthStore } from "@/stores/auth-store";
@@ -126,13 +127,26 @@ export const Header = () => {
             by CSS via the .dark class next-themes sets pre-paint — no client
             state, so SSR markup and hydration always agree. */}
         <button
-          onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+          onClick={() => {
+            const next = resolvedTheme === "dark" ? "light" : "dark";
+            setTheme(next);
+            trackEvent("ui.theme_toggled", { to: next });
+          }}
           title="Toggle light / dark mode"
           aria-label="Toggle light / dark mode"
           className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary-300"
         >
           <Sun className="hidden h-4 w-4 dark:block" />
           <Moon className="h-4 w-4 dark:hidden" />
+        </button>
+        {/* In-app feedback (blueprint "User Feedback Collection") */}
+        <button
+          onClick={() => openDialog("feedbackOpen")}
+          title="Send feedback — bugs, ideas, anything"
+          aria-label="Send feedback"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary-300"
+        >
+          <MessageSquarePlus className="h-4 w-4" />
         </button>
         {/* Language switcher (blueprint i18n: dynamic switching) */}
         <div

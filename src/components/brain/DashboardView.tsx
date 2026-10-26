@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { apiGet } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n";
+import { useFlag } from "@/lib/feature-flags-client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/stores/auth-store";
 import { useWorkspace } from "./workspace-store";
@@ -45,31 +46,40 @@ const STATUS_TONE: Record<string, string> = {
 /**
  * Bento card reveal (Tier-1 "subtle animations", framer-motion).
  * Grid cell wrapper so col-span classes stay on the animated element;
- * MotionConfig reducedMotion="user" disables this for vestibular safety.
+ * MotionConfig reducedMotion="user" handles vestibular safety, and the
+ * ui.bento_stagger feature flag is the ops-level kill switch (blueprint
+ * "Feature Flags / Kill Switches") — flipping it in Settings re-renders
+ * the dashboard statically on the next visit.
  */
 const BentoReveal = ({
   delay,
   className,
+  disabled = false,
   children,
 }: {
   delay: number;
   className?: string;
+  disabled?: boolean;
   children: React.ReactNode;
-}) => (
-  <motion.div
-    className={className}
-    initial={{ opacity: 0, y: 14 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.35, delay, ease: "easeOut" }}
-  >
-    {children}
-  </motion.div>
-);
+}) => {
+  if (disabled) return <div className={className}>{children}</div>;
+  return (
+    <motion.div
+      className={className}
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay, ease: "easeOut" }}
+    >
+      {children}
+    </motion.div>
+  );
+};
 
 const DashboardView = () => {
   const { t, fmtNumber } = useI18n();
   const { toast } = useToast();
   const canEdit = useAuthStore((s) => s.user?.role !== "viewer");
+  const staggerEnabled = useFlag("ui.bento_stagger");
 
   const openDialog = useWorkspace((s) => s.openDialog);
   const setTab = useWorkspace((s) => s.setTab);
@@ -155,7 +165,7 @@ const DashboardView = () => {
     <section className="brain-scroll h-full select-text overflow-y-auto p-4 md:p-6" aria-label="Dashboard">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
         {/* Welcome + stats */}
-        <BentoReveal delay={0} className="md:col-span-8">
+        <BentoReveal delay={0} disabled={!staggerEnabled} className="md:col-span-8">
           <Card variant="primary" interactive className="h-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2.5 text-xl">
@@ -194,7 +204,7 @@ const DashboardView = () => {
         </BentoReveal>
 
         {/* Quick Actions */}
-        <BentoReveal delay={0.05} className="md:col-span-4">
+        <BentoReveal delay={0.05} disabled={!staggerEnabled} className="md:col-span-4">
           <Card className="h-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
@@ -219,7 +229,7 @@ const DashboardView = () => {
         </BentoReveal>
 
         {/* Live graph */}
-        <BentoReveal delay={0.1} className="overflow-hidden md:col-span-8">
+        <BentoReveal delay={0.1} disabled={!staggerEnabled} className="overflow-hidden md:col-span-8">
           <Card className="h-full overflow-hidden">
           <CardHeader className="pb-0">
             <CardTitle className="flex items-center gap-2 text-sm">
@@ -248,7 +258,7 @@ const DashboardView = () => {
         </BentoReveal>
 
         {/* Live chat */}
-        <BentoReveal delay={0.15} className="overflow-hidden md:col-span-4">
+        <BentoReveal delay={0.15} disabled={!staggerEnabled} className="overflow-hidden md:col-span-4">
           <Card className="h-full overflow-hidden">
           <CardHeader className="pb-0">
             <CardTitle className="flex items-center gap-2 text-sm">
@@ -263,7 +273,7 @@ const DashboardView = () => {
         </BentoReveal>
 
         {/* Recent activity */}
-        <BentoReveal delay={0.2} className="md:col-span-8">
+        <BentoReveal delay={0.2} disabled={!staggerEnabled} className="md:col-span-8">
           <Card className="h-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
@@ -308,7 +318,7 @@ const DashboardView = () => {
         </BentoReveal>
 
         {/* Knowledge health */}
-        <BentoReveal delay={0.25} className="md:col-span-4">
+        <BentoReveal delay={0.25} disabled={!staggerEnabled} className="md:col-span-4">
           <Card className="h-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">

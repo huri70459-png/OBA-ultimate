@@ -21,6 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiDelete, apiGet } from "@/lib/api-client";
 import { queryClient } from "@/lib/query-client";
 import type { ChatRecord, GroundedSource, GroundedStreamEvent } from "@/lib/brain/types";
+import { trackEvent } from "@/lib/telemetry";
 import { shortTime } from "./ui-shared";
 
 interface ChatMessage {
@@ -202,6 +203,7 @@ export const ChatWidget = ({ projectId, className = "" }: ChatWidgetProps) => {
             } else if (ev.type === "done") {
               setStage(null);
               doneInfo = { llm_used: ev.llm_used, grounded: ev.grounded };
+              trackEvent("chat_answer", { mode, llm_used: ev.llm_used, grounded: ev.grounded });
               patchAssistant({
                 content: ev.answer,
                 pending: false,

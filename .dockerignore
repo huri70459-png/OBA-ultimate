@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.github
+db
+db/custom.db*
+logs
+dev.log
+server.log
+ProjectBrainVault
+upload
+skills
+examples
+scripts/*.png
+tool-results
+agent-ctx
