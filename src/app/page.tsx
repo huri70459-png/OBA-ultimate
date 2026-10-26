@@ -7,6 +7,7 @@
 // default landing tab (blueprint "Integrating into the Main Page").
 
 import { useEffect } from "react";
+import { motion } from "framer-motion";
 import { FileText, GitBranch, Rocket, Clock, LayoutDashboard } from "lucide-react";
 import { useWorkspace, type WorkspaceTab } from "@/components/brain/workspace-store";
 import { Header } from "@/components/brain/Header";
@@ -125,13 +126,19 @@ const BrainWorkspacePage = () => {
                 </div>
               )}
               {booted && !bootError && (
-                <>
+                <motion.div
+                  key={tab}
+                  className="h-full"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.22, ease: "easeOut" }}
+                >
                   {tab === "dashboard" && <DashboardView />}
                   {tab === "vault" && <VaultView />}
                   {tab === "timeline" && <TimelineView />}
                   {tab === "graph" && <GraphView />}
                   {tab === "context" && <ContextView />}
-                </>
+                </motion.div>
               )}
             </div>
           </main>

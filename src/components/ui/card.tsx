@@ -13,7 +13,7 @@ const cardVariants = cva(
     variants: {
       variant: {
         default: "bg-card text-card-foreground border-border",
-        primary: "border-primary/40 bg-primary/10 text-primary-foreground",
+        primary: "border-primary/40 bg-primary/10 text-foreground",
         secondary: "bg-secondary text-secondary-foreground border-secondary",
         ghost: "bg-transparent text-foreground border-transparent shadow-none",
       },

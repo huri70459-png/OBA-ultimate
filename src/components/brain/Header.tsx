@@ -1,10 +1,12 @@
 "use client";
 
 // Top command bar — brand, universal search, Zero-Save Capture, Memory Compressor,
-// Self-Test, language switcher (i18n), and the session user menu (auth).
+// Self-Test, language switcher (i18n), theme toggle (Tier-1 dual-mode), and the
+// session user menu (auth).
 
 import { useState } from "react";
-import { LogOut, Search, ShieldCheck, Zap, Stethoscope, DatabaseZap, Cpu } from "lucide-react";
+import { LogOut, Search, ShieldCheck, Zap, Stethoscope, DatabaseZap, Cpu, Sun, Moon } from "lucide-react";
+import { useTheme } from "next-themes";
 import { useToast } from "@/hooks/use-toast";
 import { useI18n } from "@/lib/i18n";
 import { LOCALES, type Locale } from "@/lib/i18n/dictionaries";
@@ -21,6 +23,7 @@ export const Header = () => {
   const logout = useAuthStore((s) => s.logout);
   const { t, locale, setLocale } = useI18n();
   const { toast } = useToast();
+  const { resolvedTheme, setTheme } = useTheme();
   const [query, setQuery] = useState("");
 
   const roleLabel = user
@@ -119,6 +122,18 @@ export const Header = () => {
             <ShieldCheck className="h-4 w-4" />
           </button>
         )}
+        {/* Theme toggle (Tier-1: light + dark mode support). Icons are picked
+            by CSS via the .dark class next-themes sets pre-paint — no client
+            state, so SSR markup and hydration always agree. */}
+        <button
+          onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+          title="Toggle light / dark mode"
+          aria-label="Toggle light / dark mode"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary-300"
+        >
+          <Sun className="hidden h-4 w-4 dark:block" />
+          <Moon className="h-4 w-4 dark:hidden" />
+        </button>
         {/* Language switcher (blueprint i18n: dynamic switching) */}
         <div
           className="flex overflow-hidden rounded-lg border border-border"

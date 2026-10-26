@@ -2,9 +2,9 @@
 
 > Regenerated from captures; repeated exact captures are folded into occurrence counts.
 
-## 2026-10-26 · 13 unique captures / 17 occurrences
+## 2026-10-26 · 25 unique captures / 37 occurrences
 
-### Session 1 · 00:11–00:42
+### Session 1 · 00:11–01:02
 - **[SESSION] Work Session 2026-10-25 · 21:29–23:48 · 79 captures** — Rolled up 79 captures (59 notes, 20 terminals) · topics: use, quick, sqlite, thought
 - **[NOTE] Quick thought: the vector index should roll this up into a work s** — [fast-memory-structurer] Quick thought: the vector index should roll this up into a work session block [run 1792974895730]
 - **[NOTE] Quick thought: session rollup groups captures that happen within ** — [fast-memory-structurer] Quick thought: session rollup groups captures that happen within 90 minutes of each other [run 1792974895782]
@@ -17,23 +17,23 @@
 - **[SESSION] Work Session 2026-10-25 · 21:29–00:42 · 86 captures** — Rolled up 86 captures (65 notes, 21 terminals) · topics: use, quick, thought, sqlite
 - **[TERMINAL] Error: Port 3000 already in use (EADDRINUSE)** — [codex-agent] Diagnosed EADDRINUSE -> Suggested Fix: `npx kill-port 3000`
 - **[NOTE] Obsidian two-way sync probe note DiskEditProbe1792975334696: edit** — [fast-memory-structurer] Obsidian two-way sync probe note DiskEditProbe1792975334696: edit the file on disk and it must flow back into SQLite
-- **[NOTE] Decision: use SQLite sidecar for vectors in agent-probe-179297534** — [reasoning-architect] Decision: use SQLite sidecar for vectors in agent-probe-1792975340264 Reason: keeps Brain OS dependency-light
+- **[NOTE] Decision: use SQLite sidecar for vectors in agent-probe-179297534** ×5 — [reasoning-architect] Decision: use SQLite sidecar for vectors in agent-probe-1792975340264 Reason: keeps Brain OS dependency-light
+- **[NOTE] Quick thought: the vector index should roll this up into a work s** — [fast-memory-structurer] Quick thought: the vector index should roll this up into a work session block [run 1792976104643]
+- **[NOTE] Quick thought: session rollup groups captures that happen within ** — [fast-memory-structurer] Quick thought: session rollup groups captures that happen within 90 minutes of each other [run 1792976104857]
+- **[SESSION] Work Session 2026-10-25 · 21:29–00:55 · 91 captures** — Rolled up 91 captures (69 notes, 22 terminals) · topics: use, quick, thought, sqlite
+- **[TERMINAL] Error: Port 3000 already in use (EADDRINUSE)** — [codex-agent] Diagnosed EADDRINUSE -> Suggested Fix: `npx kill-port 3000`
+- **[NOTE] Obsidian two-way sync probe note DiskEditProbe1792976108261: edit** — [fast-memory-structurer] Obsidian two-way sync probe note DiskEditProbe1792976108261: edit the file on disk and it must flow back into SQLite
+- **[NOTE] Decision: use SQLite sidecar for vectors in agent-probe-179297611** ×5 — [reasoning-architect] Decision: use SQLite sidecar for vectors in agent-probe-1792976114012 Reason: keeps Brain OS dependency-light
+- **[NOTE] Quick thought: the vector index should roll this up into a work s** — [fast-memory-structurer] Quick thought: the vector index should roll this up into a work session block [run 1792976511934]
+- **[NOTE] Quick thought: session rollup groups captures that happen within ** — [fast-memory-structurer] Quick thought: session rollup groups captures that happen within 90 minutes of each other [run 1792976511991]
+- **[SESSION] Work Session 2026-10-25 · 21:29–01:01 · 96 captures** — Rolled up 96 captures (73 notes, 23 terminals) · topics: use, quick, thought, sqlite
+- **[TERMINAL] Error: Port 3000 already in use (EADDRINUSE)** — [codex-agent] Diagnosed EADDRINUSE -> Suggested Fix: `npx kill-port 3000`
+- **[NOTE] Obsidian two-way sync probe note DiskEditProbe1792976515165: edit** — [fast-memory-structurer] Obsidian two-way sync probe note DiskEditProbe1792976515165: edit the file on disk and it must flow back into SQLite
+- **[NOTE] Decision: use SQLite sidecar for vectors in agent-probe-179297652** — [reasoning-architect] Decision: use SQLite sidecar for vectors in agent-probe-1792976520582 Reason: keeps Brain OS dependency-light
 
-## 2026-10-25 · 87 unique captures / 145 occurrences
+## 2026-10-25 · 75 unique captures / 115 occurrences
 
-### Session 1 · 21:30–22:22
-- **[NOTE] Obsidian two-way sync probe note DiskEditProbe1792963823147: edit** — [fast-memory-structurer] Obsidian two-way sync probe note DiskEditProbe1792963823147: edit the file on disk and it must flow back into SQLite
-- **[NOTE] Unrelated noise probe 1792963824681: old screenshot of a login sc** — [fast-memory-structurer] Unrelated noise probe 1792963824681: old screenshot of a login screen
-- **[SESSION] Work Session 2026-10-25 · 21:29–21:30 · 11 captures** — Rolled up 11 captures (8 notes, 3 terminals) · topics: probe, quick, thought, run
-- **[NOTE] Decision: use SQLite sidecar for vectors in agent-probe-179296625** ×7 — [reasoning-architect] Decision: use SQLite sidecar for vectors in agent-probe-1792966255281 Reason: keeps Brain OS dependency-light
-- **[SESSION] Work Session 2026-10-25 · 21:29–22:10 · 12 captures** — Rolled up 12 captures (9 notes, 3 terminals) · topics: probe, quick, thought, use
-- **[NOTE] Decision: use SQLite sidecar for vectors in agent-probe-179296635** ×5 — [reasoning-architect] Decision: use SQLite sidecar for vectors in agent-probe-1792966354330 Reason: keeps Brain OS dependency-light
-- **[SESSION] Work Session 2026-10-25 · 21:29–22:12 · 13 captures** — Rolled up 13 captures (10 notes, 3 terminals) · topics: use, probe, quick, thought
-- **[NOTE] Decision: use SQLite sidecar for vectors in agent-probe-179296654** ×5 — [reasoning-architect] Decision: use SQLite sidecar for vectors in agent-probe-1792966546551 Reason: keeps Brain OS dependency-light
-- **[SESSION] Work Session 2026-10-25 · 21:29–22:15 · 14 captures** — Rolled up 14 captures (11 notes, 3 terminals) · topics: use, sqlite, probe, quick
-- **[NOTE] Decision: use SQLite sidecar for vectors in agent-probe-179296666** ×5 — [reasoning-architect] Decision: use SQLite sidecar for vectors in agent-probe-1792966664038 Reason: keeps Brain OS dependency-light
-- **[SESSION] Work Session 2026-10-25 · 21:29–22:17 · 15 captures** — Rolled up 15 captures (12 notes, 3 terminals) · topics: use, sqlite, decision, probe
-- **[NOTE] Quick thought: the vector index should roll this up into a work s** — [fast-memory-structurer] Quick thought: the vector index should roll this up into a work session block [run 1792966701670]
+### Session 1 · 22:18–22:22
 - **[NOTE] Quick thought: session rollup groups captures that happen within ** — [fast-memory-structurer] Quick thought: session rollup groups captures that happen within 90 minutes of each other [run 1792966701715]
 - **[SESSION] Work Session 2026-10-25 · 21:29–22:18 · 17 captures** — Rolled up 17 captures (14 notes, 3 terminals) · topics: use, quick, thought, sqlite
 - **[TERMINAL] Error: Port 3000 already in use (EADDRINUSE)** — [codex-agent] Diagnosed EADDRINUSE -> Suggested Fix: `npx kill-port 3000`

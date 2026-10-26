@@ -9,6 +9,7 @@
 // workspace store — exactly the blueprint's Zustand + React Query split.
 
 import { useQuery } from "@tanstack/react-query";
+import { motion } from "framer-motion";
 import {
   Activity,
   BrainCircuit,
@@ -40,6 +41,30 @@ const STATUS_TONE: Record<string, string> = {
   "Needs attention": "border-destructive/30 bg-destructive/10 text-destructive",
   "Not scored yet": "border-border bg-muted text-muted-foreground",
 };
+
+/**
+ * Bento card reveal (Tier-1 "subtle animations", framer-motion).
+ * Grid cell wrapper so col-span classes stay on the animated element;
+ * MotionConfig reducedMotion="user" disables this for vestibular safety.
+ */
+const BentoReveal = ({
+  delay,
+  className,
+  children,
+}: {
+  delay: number;
+  className?: string;
+  children: React.ReactNode;
+}) => (
+  <motion.div
+    className={className}
+    initial={{ opacity: 0, y: 14 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.35, delay, ease: "easeOut" }}
+  >
+    {children}
+  </motion.div>
+);
 
 const DashboardView = () => {
   const { t, fmtNumber } = useI18n();
@@ -130,7 +155,8 @@ const DashboardView = () => {
     <section className="brain-scroll h-full select-text overflow-y-auto p-4 md:p-6" aria-label="Dashboard">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
         {/* Welcome + stats */}
-        <Card variant="primary" interactive className="md:col-span-8">
+        <BentoReveal delay={0} className="md:col-span-8">
+          <Card variant="primary" interactive className="h-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2.5 text-xl">
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 text-lg shadow-lg shadow-primary/30">
@@ -165,9 +191,11 @@ const DashboardView = () => {
             </button>
           </CardContent>
         </Card>
+        </BentoReveal>
 
         {/* Quick Actions */}
-        <Card className="md:col-span-4">
+        <BentoReveal delay={0.05} className="md:col-span-4">
+          <Card className="h-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
               <Zap className="h-4 w-4 text-warning" /> {t("dash.quick_actions")}
@@ -188,9 +216,11 @@ const DashboardView = () => {
             ))}
           </CardContent>
         </Card>
+        </BentoReveal>
 
         {/* Live graph */}
-        <Card className="overflow-hidden md:col-span-8">
+        <BentoReveal delay={0.1} className="overflow-hidden md:col-span-8">
+          <Card className="h-full overflow-hidden">
           <CardHeader className="pb-0">
             <CardTitle className="flex items-center gap-2 text-sm">
               <BrainCircuit className="h-4 w-4 text-primary-400" /> {t("dash.graph.title")}
@@ -215,9 +245,11 @@ const DashboardView = () => {
             )}
           </CardContent>
         </Card>
+        </BentoReveal>
 
         {/* Live chat */}
-        <Card className="overflow-hidden md:col-span-4">
+        <BentoReveal delay={0.15} className="overflow-hidden md:col-span-4">
+          <Card className="h-full overflow-hidden">
           <CardHeader className="pb-0">
             <CardTitle className="flex items-center gap-2 text-sm">
               <MessageSquare className="h-4 w-4 text-primary-300" /> {t("dash.chat.title")}
@@ -228,9 +260,11 @@ const DashboardView = () => {
             <ChatWidget projectId={chatProjectId} className="h-[300px]" />
           </CardContent>
         </Card>
+        </BentoReveal>
 
         {/* Recent activity */}
-        <Card className="md:col-span-8">
+        <BentoReveal delay={0.2} className="md:col-span-8">
+          <Card className="h-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
               <Activity className="h-4 w-4 text-info" /> {t("dash.activity.title")}
@@ -271,9 +305,11 @@ const DashboardView = () => {
             )}
           </CardContent>
         </Card>
+        </BentoReveal>
 
         {/* Knowledge health */}
-        <Card className="md:col-span-4">
+        <BentoReveal delay={0.25} className="md:col-span-4">
+          <Card className="h-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
               <BrainCircuit className="h-4 w-4 text-success" /> {t("dash.health.title")}
@@ -315,6 +351,7 @@ const DashboardView = () => {
             )}
           </CardContent>
         </Card>
+        </BentoReveal>
       </div>
     </section>
   );
