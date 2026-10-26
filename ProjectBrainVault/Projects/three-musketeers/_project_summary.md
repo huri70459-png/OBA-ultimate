@@ -4,7 +4,7 @@
 - **Unique Captures Indexed:** 100 (153 observed occurrences after duplicate folding)
 - **Composition:** 36 notes, 0 screenshots, 57 terminal logs
 - **Decisions Logged:** 22
-- **Last Compressed:** 2026-10-25T23:56:42.538Z
+- **Last Compressed:** 2026-10-25T23:59:36.337Z
 
 ## 1. Compressed Rolling Memory (Tier-1 Prompt Payload)
 Compressed memory for **Three Musketeers** (100 captures: 57 terminals, 36 notes, 7 sessions; auto-synthesized by the Memory Compression Daemon).
@@ -22,15 +22,15 @@ Active themes across recent captures: 22, fix, error, codex-agent, add, pnpm, di
 
 ## Resolved Fixes
 - Error: Missing Node dependency 'dotenv' -> `pnpm add dotenv`
+- Error: Missing Node dependency 'dedup-probe-1792972602575' -> `pnpm add dedup-probe-1792972602575`
 - Error: Missing Node dependency 'dedup-probe-1792972248656' -> `pnpm add dedup-probe-1792972248656`
 - Error: Missing Node dependency 'dedup-probe-1792972103628' -> `pnpm add dedup-probe-1792972103628`
-- Error: Missing Node dependency 'window-probe-1792972102068' -> `pnpm add window-probe-1792972102068`
 
 ## Key Files on Record
 - gateway.mjs, tunable.mjs, worker.mjs, architecture.md
 
 ## Knowledge Gaps
-- [HIGH] Unresolved error captures piling up — 7 error captures have no logged fix — log the 
+- [HIGH] Unresolved error captures piling up — 7 error captures have no logged fix — log the fi
 
 ## 2. Key Architectural Decisions
 - **Decision: Use Render over Railway for worker hosting**: Decision: Use Render over Railway for worker hosting *(Reason: Predictable worker pricing and simpler autoscaling)*
@@ -57,6 +57,8 @@ Active themes across recent captures: 22, fix, error, codex-agent, add, pnpm, di
 - **Gateway deployment target**: Use Render background workers *(Reason: Zero ops overhead for a small team)*
 
 ## 3. Known Bug Fixes & Actionable Remedies
+- Error: Missing Node dependency 'dotenv' -> `pnpm add dotenv`
+- Error: Missing Node dependency 'dedup-probe-1792972602575' -> `pnpm add dedup-probe-1792972602575`
 - Error: Missing Node dependency 'dotenv' -> `pnpm add dotenv`
 - Error: Missing Node dependency 'dedup-probe-1792972248656' -> `pnpm add dedup-probe-1792972248656`
 - Error: Missing Node dependency 'dotenv' -> `pnpm add dotenv`
@@ -116,8 +118,6 @@ Active themes across recent captures: 22, fix, error, codex-agent, add, pnpm, di
 - Error: Missing Node dependency 'aged-probe-1792966901256' -> `pnpm add aged-probe-1792966901256`
 - Error: Missing Node dependency 'dedup-suite-1792966901256' -> `pnpm add dedup-suite-1792966901256`
 - Error: Missing Node dependency 'dedup-suite-1792966901256' -> `pnpm add dedup-suite-1792966901256`
-- Error: Missing Node dependency 'dedup-probe-1792966900923' -> `pnpm add dedup-probe-1792966900923`
-- Error: Missing Node dependency 'dotenv' -> `pnpm add dotenv`
 
 ## 4. Knowledge Gaps & Recommendations
 - ⚠️ Unresolved error captures piling up — 7 error captures have no logged fix — log the fix or decision that resolved them
