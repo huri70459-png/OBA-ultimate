@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { apiGuard } from "@/lib/auth";
 import { ensureSeedDataOnce } from "@/lib/brain/seed";
 import { logDecision, resolveProjectId } from "@/lib/brain/store";
 import { compressProjectMemory } from "@/lib/brain/compressor";
@@ -7,6 +8,8 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
+    const gate = await apiGuard(req, { mutation: true });
+    if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
     await ensureSeedDataOnce();
     const body = await req.json();
     if (!body.project_id || !body.title || !body.decision || !body.reasoning) {

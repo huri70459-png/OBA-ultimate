@@ -1,10 +1,14 @@
 "use client";
 
-// Top command bar — brand, universal search, Zero-Save Capture, Memory Compressor, Self-Test
+// Top command bar — brand, universal search, Zero-Save Capture, Memory Compressor,
+// Self-Test, language switcher (i18n), and the session user menu (auth).
 
 import { useState } from "react";
-import { Search, Zap, Stethoscope, DatabaseZap, Cpu } from "lucide-react";
+import { LogOut, Search, ShieldCheck, Zap, Stethoscope, DatabaseZap, Cpu } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useI18n } from "@/lib/i18n";
+import { LOCALES, type Locale } from "@/lib/i18n/dictionaries";
+import { useAuthStore } from "@/stores/auth-store";
 import { useWorkspace } from "./workspace-store";
 
 export const Header = () => {
@@ -13,8 +17,19 @@ export const Header = () => {
   const compressMemory = useWorkspace((s) => s.compressMemory);
   const compressing = useWorkspace((s) => s.compressing);
   const llmBackend = useWorkspace((s) => s.llmBackend);
+  const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
+  const { t, locale, setLocale } = useI18n();
   const { toast } = useToast();
   const [query, setQuery] = useState("");
+
+  const roleLabel = user
+    ? user.role === "owner"
+      ? t("user.role.owner")
+      : user.role === "editor"
+        ? t("user.role.editor")
+        : t("user.role.viewer")
+    : null;
 
   const backendLabel = llmBackend
     ? llmBackend.provider === "deterministic-offline"
@@ -93,6 +108,38 @@ export const Header = () => {
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
+        {/* Open mode: affordance to bootstrap owner protection (blueprint "Route Protection") */}
+        {!user && (
+          <button
+            onClick={() => useAuthStore.setState({ status: "setup", error: null })}
+            title="Protect this workspace — create the owner account"
+            aria-label="Protect this workspace"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground transition-colors hover:border-success/40 hover:text-success"
+          >
+            <ShieldCheck className="h-4 w-4" />
+          </button>
+        )}
+        {/* Language switcher (blueprint i18n: dynamic switching) */}
+        <div
+          className="flex overflow-hidden rounded-lg border border-border"
+          role="group"
+          aria-label="Language"
+        >
+          {LOCALES.map((l: Locale) => (
+            <button
+              key={l}
+              onClick={() => setLocale(l)}
+              aria-pressed={locale === l}
+              className={`px-2 py-1.5 text-[10px] font-semibold transition-colors ${
+                locale === l
+                  ? "bg-primary/15 text-primary-300"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {l === "en" ? "EN" : "中文"}
+            </button>
+          ))}
+        </div>
         <button
           onClick={() => openDialog("captureOpen")}
           className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow-lg shadow-primary/25 transition-colors hover:bg-primary-400"
@@ -119,6 +166,34 @@ export const Header = () => {
           <Stethoscope className="h-3.5 w-3.5" />
           Self-Test
         </button>
+
+        {/* Session user menu (rendered only when an account is signed in) */}
+        {user && (
+          <div className="flex items-center gap-1.5 rounded-lg border border-border bg-muted py-1 pl-1.5 pr-1">
+            <div
+              className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-primary-400 to-primary-600 text-[10px] font-bold text-white"
+              aria-hidden
+            >
+              {user.name.charAt(0).toUpperCase()}
+            </div>
+            <div className="hidden leading-tight lg:block">
+              <p className="max-w-[110px] truncate text-[10px] font-semibold text-foreground">
+                {user.name}
+              </p>
+              <p className="text-[9px] text-muted-foreground">{roleLabel}</p>
+            </div>
+            <button
+              onClick={() => {
+                void logout().then(() => window.location.reload());
+              }}
+              title={t("user.sign_out")}
+              aria-label={t("user.sign_out")}
+              className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:text-destructive"
+            >
+              <LogOut className="h-3 w-3" />
+            </button>
+          </div>
+        )}
       </div>
     </header>
   );

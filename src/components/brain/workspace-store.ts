@@ -1,11 +1,16 @@
 "use client";
 
-// Workspace state — zustand store for Project Brain OS UI
+// Workspace state — zustand store for Project Brain OS UI.
+// Client-side/UI state lives here; SERVER state flows through TanStack Query
+// (blueprint "Centralized State Management") — queries are invalidated via the
+// module-level queryClient after store mutations.
 
 import { create } from "zustand";
+import { apiGet, apiPost } from "@/lib/api-client";
+import { invalidate } from "@/lib/query-client";
 import type { BrainProject, CompressionReport, LlmBackend, ProjectDetails } from "@/lib/brain/types";
 
-export type WorkspaceTab = "vault" | "timeline" | "graph" | "context";
+export type WorkspaceTab = "dashboard" | "vault" | "timeline" | "graph" | "context";
 
 interface DialogState {
   captureOpen: boolean;
@@ -40,12 +45,6 @@ interface WorkspaceState extends DialogState {
   openSearch: (seed?: string) => void;
 }
 
-async function jsonFetch<T>(url: string): Promise<T> {
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) throw new Error(`${url} -> ${res.status}`);
-  return res.json() as Promise<T>;
-}
-
 export const useWorkspace = create<WorkspaceState>((set, get) => ({
   booted: false,
   bootError: null,
@@ -54,7 +53,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   details: null,
   loadingDetails: false,
   compressing: false,
-  tab: "vault",
+  tab: "dashboard",
   searchSeed: "",
   llmBackend: null,
   captureOpen: false,
@@ -68,7 +67,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
     try {
       // GET /health triggers first-boot seeding (3 projects + demo captures)
       // and reports the detected AI backend (Ollama / Cloud / Offline Synthesizer)
-      const health = await jsonFetch<{ status: string; llm_backend?: LlmBackend }>("/api/health");
+      const health = await apiGet<{ status: string; llm_backend?: LlmBackend }>("/api/health");
       set({ llmBackend: health.llm_backend ?? null });
       await get().loadProjects();
       const first = get().projects[0];
@@ -84,7 +83,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
 
   loadProjects: async () => {
     try {
-      const data = await jsonFetch<{ projects: BrainProject[] }>("/api/projects");
+      const data = await apiGet<{ projects: BrainProject[] }>("/api/projects");
       set({ projects: data.projects });
     } catch {
       set({ projects: [] });
@@ -101,7 +100,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
     if (!target) return;
     set({ loadingDetails: true });
     try {
-      const data = await jsonFetch<ProjectDetails>(`/api/projects/${target}`);
+      const data = await apiGet<ProjectDetails>(`/api/projects/${target}`);
       set({ details: data, loadingDetails: false });
     } catch {
       set({ details: null, loadingDetails: false });
@@ -111,15 +110,14 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   refreshAll: async () => {
     await get().loadProjects();
     await get().loadDetails();
+    invalidate(["dashboard"]); // bento counters reflect the mutation immediately
   },
 
   compressMemory: async () => {
     if (get().compressing) return null;
     set({ compressing: true });
     try {
-      const res = await fetch("/api/daemon", { method: "POST" });
-      if (!res.ok) throw new Error(`daemon -> ${res.status}`);
-      const report = (await res.json()) as CompressionReport;
+      const report = await apiPost<CompressionReport>("/api/daemon");
       await get().refreshAll();
       return report;
     } catch {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { apiGuard } from "@/lib/auth";
 import { ensureSeedDataOnce } from "@/lib/brain/seed";
 import { resolveProjectId } from "@/lib/brain/store";
 import { findCrossProjectSolutions } from "@/lib/brain/compressor";
@@ -12,6 +13,8 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: NextRequest) {
   try {
+    const gate = await apiGuard(req, { mutation: false });
+    if (!gate.ok) return NextResponse.json({ error: gate.error, solutions: [] }, { status: gate.status });
     await ensureSeedDataOnce();
     const q = req.nextUrl.searchParams.get("q") ?? "";
     if (!q.trim()) {

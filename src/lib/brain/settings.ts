@@ -27,6 +27,7 @@ export const SETTING_KEYS = [
   "llm_timeout_seconds",
   "dedup_window_hours",
   "agent_ingest_token",
+  "auth_mode", // enterprise phase: "enforced" (default once an account exists) | "open"
 ] as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[number];

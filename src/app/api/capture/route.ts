@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { apiGuard } from "@/lib/auth";
 import { ensureSeedDataOnce } from "@/lib/brain/seed";
 import { capture } from "@/lib/brain/pipeline";
 import { compressProjectMemory } from "@/lib/brain/compressor";
@@ -7,6 +8,10 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
+    // Enterprise guard: session required when auth is enforced; the desktop-agent
+    // ingest token is also accepted so the capture pipeline never breaks.
+    const gate = await apiGuard(req, { mutation: true, allowAgentToken: true });
+    if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
     await ensureSeedDataOnce();
     const body = await req.json();
     const result = await capture({

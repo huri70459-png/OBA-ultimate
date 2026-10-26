@@ -176,6 +176,44 @@ export interface GroundedAnswer {
   error?: string;
 }
 
+// ==========================================
+// V2.3 ENTERPRISE PHASE — Real-time chat / auth / dashboard
+// ==========================================
+
+/** NDJSON progress events emitted by POST /api/ask/stream. */
+export type GroundedStreamEvent =
+  | { type: "status"; stage: string; detail?: string }
+  | { type: "sources"; sources: GroundedSource[] }
+  | { type: "delta"; text: string }
+  | { type: "saved"; message_id: string; user_message_id: string }
+  | { type: "done"; answer: string; grounded: boolean; mode: "ask" | "synthesize"; llm_used: boolean }
+  | { type: "error"; error: string };
+
+/** A persisted chat message (GET /api/chat) — one thread per project, null = Inbox. */
+export interface ChatRecord {
+  id: string;
+  project_id: string | null;
+  role: "user" | "assistant";
+  content: string;
+  mode: string;
+  llm_used: boolean;
+  grounded: boolean;
+  sources: GroundedSource[];
+  created_at: string;
+}
+
+/** Bento-grid summary payload (GET /api/dashboard). */
+export interface DashboardSummary {
+  projects: number;
+  captures: number;
+  decisions: number;
+  edges: number;
+  inbox: number;
+  avg_health: number | null;
+  recent: TimelineEntry[];
+  health: Array<{ id: string; name: string; score: number; status: string }>;
+}
+
 /** Result of the Two-Way Obsidian Disk Sync (port of sync_markdown_edits_from_disk). */
 export interface DiskSyncStats {
   files_checked: number;

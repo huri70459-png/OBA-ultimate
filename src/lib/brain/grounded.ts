@@ -9,7 +9,7 @@
 import { llmBridge } from "./llm-bridge";
 import { db } from "@/lib/db";
 import { searchVaultHybrid } from "./store";
-import type { GroundedAnswer, GroundedSource } from "./types";
+import type { GroundedAnswer, GroundedSource, GroundedStreamEvent } from "./types";
 
 const EXCERPT_CHARS = 700;
 const MAX_SOURCES = 8;
@@ -99,4 +99,73 @@ export async function groundedAnswer(input: {
     mode,
     llm_used: Boolean(generated),
   };
+}
+
+/**
+ * v2.3 real-time grounded Q&A (blueprint "Real-time Chat Integration"). Same
+ * evidence-first contract as groundedAnswer(), but emits NDJSON progress events
+ * as they happen: search -> sources -> synthesis deltas -> done. Token-level
+ * deltas stream when the backend supports it (Ollama/OpenAI); other backends
+ * emit one buffered delta. NEVER fabricates: no LLM => the offline notice is the
+ * answer, exactly like the non-streaming path.
+ */
+export async function groundedAnswerStream(
+  input: {
+    projectId?: string | null;
+    query: string;
+    mode?: "ask" | "synthesize";
+  },
+  emit: (event: GroundedStreamEvent) => void,
+): Promise<GroundedAnswer> {
+  const { projectId = null, mode = "ask" } = input;
+  const query = (input.query ?? "").trim();
+
+  emit({ type: "status", stage: "search", detail: "searching vault evidence\u2026" });
+  if (!query) {
+    const answer = "A non-empty query is required";
+    emit({ type: "done", answer, grounded: false, mode, llm_used: false });
+    return { answer, sources: [], grounded: false, mode, llm_used: false, error: answer };
+  }
+
+  const ranked = await searchVaultHybrid(query, {
+    projectId: projectId ?? undefined,
+    limit: MAX_SOURCES * 3,
+  });
+  const hits = ranked
+    .filter((h) => h.modes.includes("fts") || (h.similarity ?? 0) >= 0.45)
+    .slice(0, MAX_SOURCES);
+
+  if (hits.length === 0) {
+    emit({ type: "status", stage: "no_evidence" });
+    emit({ type: "done", answer: NO_EVIDENCE_ANSWER, grounded: false, mode, llm_used: false });
+    return { answer: NO_EVIDENCE_ANSWER, sources: [], grounded: false, mode, llm_used: false };
+  }
+
+  const sources: GroundedSource[] = hits.map((h) => ({
+    id: h.id,
+    title: h.title,
+    project_id: h.projectId,
+    captured_at: h.capturedAt,
+    excerpt: (h.structuredSummary || h.rawContent || "").slice(0, EXCERPT_CHARS),
+  }));
+  emit({ type: "sources", sources });
+  emit({ type: "status", stage: "synthesize", detail: `reading ${sources.length} source(s)\u2026` });
+
+  const project = projectId
+    ? await db.project.findUnique({ where: { id: projectId }, select: { name: true } })
+    : null;
+  const evidence = sources
+    .map((s, i) => `[${i + 1}] ${s.title} (${s.captured_at})\n${s.excerpt}`)
+    .join("\n\n");
+
+  const generated = await llmBridge.completeTextStream(
+    mode === "synthesize" ? SYNTHESIZE_INSTRUCTION : ASK_INSTRUCTION,
+    `Project: ${project?.name ?? "All projects"}\nQuestion/task: ${query}\n\nEvidence:\n${evidence}`,
+    700,
+    (chunk) => emit({ type: "delta", text: chunk }),
+  );
+
+  const answer = generated || OFFLINE_ANSWER;
+  emit({ type: "done", answer, grounded: true, mode, llm_used: Boolean(generated) });
+  return { answer, sources, grounded: true, mode, llm_used: Boolean(generated) };
 }

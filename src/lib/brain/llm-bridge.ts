@@ -284,6 +284,120 @@ export class HybridLLMBridge {
     return "";
   }
 
+  /**
+   * v2.3 real-time chat: streaming completion (blueprint "Real-time Chat").
+   * TRUE token deltas for Ollama (`stream: true` NDJSON) and OpenAI (SSE);
+   * Anthropic/Gemini/offline fall back to buffered completeText() and emit the
+   * answer as a single delta. Returns the full text ("" = no live backend, so
+   * callers keep the honest offline contract).
+   */
+  async completeTextStream(
+    systemPrompt: string,
+    userPrompt: string,
+    maxTokens: number,
+    onDelta: (chunk: string) => void,
+    opts?: { timeoutMs?: number },
+  ): Promise<string> {
+    const backend = await this.detectActiveBackend();
+    const cfg = await this.runtimeConfig();
+    const timeoutMs = this.timeoutMsFor(cfg, backend.provider, opts?.timeoutMs);
+
+    const readLines = async (
+      body: ReadableStream<Uint8Array>,
+      handle: (line: string) => void,
+    ): Promise<void> => {
+      const reader = body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) handle(line);
+      }
+      if (buf.trim()) handle(buf);
+    };
+
+    try {
+      if (backend.provider === "ollama") {
+        const res = await fetch(`${cfg.ollamaUrl}/api/generate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: cfg.ollamaModel,
+            prompt: `System: ${systemPrompt}\n\nUser: ${userPrompt}`,
+            stream: true,
+          }),
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+        if (!res.ok || !res.body) return "";
+        let full = "";
+        await readLines(res.body, (line) => {
+          if (!line.trim()) return;
+          try {
+            const json = JSON.parse(line) as { response?: string };
+            if (json.response) {
+              full += json.response;
+              onDelta(json.response);
+            }
+          } catch {
+            // partial NDJSON line — skipped safely
+          }
+        });
+        return full.trim();
+      }
+
+      if (backend.provider === "openai") {
+        const res = await fetch(`${cfg.openaiBase}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${cfg.openaiKey}`,
+          },
+          body: JSON.stringify({
+            model: backend.model,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+            max_tokens: maxTokens,
+            temperature: 0.2,
+            stream: true,
+          }),
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+        if (!res.ok || !res.body) return "";
+        let full = "";
+        await readLines(res.body, (line) => {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith("data:")) return;
+          const payload = trimmed.slice(5).trim();
+          if (payload === "[DONE]") return;
+          try {
+            const json = JSON.parse(payload) as { choices?: Array<{ delta?: { content?: string } }> };
+            const piece = json.choices?.[0]?.delta?.content ?? "";
+            if (piece) {
+              full += piece;
+              onDelta(piece);
+            }
+          } catch {
+            // keep-alive comment or partial SSE — skipped safely
+          }
+        });
+        return full.trim();
+      }
+    } catch {
+      return "";
+    }
+
+    // anthropic / gemini / deterministic-offline: buffered answer, single delta
+    const buffered = await this.completeText(systemPrompt, userPrompt, maxTokens, opts);
+    if (buffered) onDelta(buffered);
+    return buffered;
+  }
+
   // =========================================================================
   // 3. v2.2 BACKEND PROBE (real connectivity test for the Settings dialog)
   // =========================================================================

@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { apiGuard } from "@/lib/auth";
 import { ensureSeedDataOnce } from "@/lib/brain/seed";
 import { getDaemonStatus, maybeAutoCompress, runCompressionCycle } from "@/lib/brain/compressor";
 import { isVectorIndexReady } from "@/lib/brain/store";
@@ -35,8 +36,10 @@ export async function GET() {
 }
 
 /** POST /api/daemon — run a compression cycle now (idempotent; safe to repeat). */
-export async function POST() {
+export async function POST(req: NextRequest) {
   try {
+    const gate = await apiGuard(req, { mutation: true });
+    if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
     await ensureSeedDataOnce();
     const report = await runCompressionCycle("manual");
     return NextResponse.json(report);
@@ -49,7 +52,9 @@ export async function POST() {
 }
 
 /** Keepalive hook for long-lived clients wanting an idle-scheduler nudge. */
-export async function PUT() {
+export async function PUT(req: NextRequest) {
+  const gate = await apiGuard(req, { mutation: true });
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
   await ensureSeedDataOnce();
   maybeAutoCompress();
   return NextResponse.json({ ok: true });

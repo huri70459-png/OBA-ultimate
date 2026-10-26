@@ -20,6 +20,7 @@
 // BRAIN_INGEST_TOKEN env) every mutating call must present it.
 
 import { NextRequest, NextResponse } from "next/server";
+import { apiGuard } from "@/lib/auth";
 import { ensureSeedDataOnce } from "@/lib/brain/seed";
 import { capture } from "@/lib/brain/pipeline";
 import { compressProjectMemory } from "@/lib/brain/compressor";
@@ -71,9 +72,12 @@ export async function POST(req: NextRequest) {
   try {
     await ensureSeedDataOnce();
 
-    // 1. Ingest auth (token-protected when configured)
+    // 1. Ingest auth — three acceptable credentials, in order:
+    //    a) configured agent ingest token (desktop agents, works even when enforced)
+    //    b) a valid user session cookie (enforced mode, editor+ role)
+    //    c) open mode (no token configured, no accounts) — trusted loopback parity
     const auth = await checkAgentToken(extractToken(req));
-    if (!auth.ok) {
+    if (auth.required && !auth.ok) {
       return NextResponse.json(
         {
           error: "Invalid or missing agent ingest token",
@@ -81,6 +85,15 @@ export async function POST(req: NextRequest) {
         },
         { status: 401 }
       );
+    }
+    if (!auth.required) {
+      const gate = await apiGuard(req, { mutation: true });
+      if (!gate.ok) {
+        return NextResponse.json(
+          { error: gate.error, hint: "Sign in to the workspace, or configure an agent ingest token in Settings" },
+          { status: gate.status }
+        );
+      }
     }
 
     // 2. brain_api.py-shaped payload (snake_case first, camelCase aliases accepted)

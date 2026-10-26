@@ -1,15 +1,44 @@
 import * as React from "react"
+import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
-const Card = ({ className, ...props }: React.ComponentProps<"div">) => {
+// Blueprint ("Customizing shadcn/ui Components: The Card Example"): variant-driven
+// semantic styling on top of the Deep Intelligence tokens, with an optional
+// interactive hover lift for Bento Grid tiles.
+
+const cardVariants = cva(
+  "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm",
+  {
+    variants: {
+      variant: {
+        default: "bg-card text-card-foreground border-border",
+        primary: "border-primary/40 bg-primary/10 text-primary-foreground",
+        secondary: "bg-secondary text-secondary-foreground border-secondary",
+        ghost: "bg-transparent text-foreground border-transparent shadow-none",
+      },
+      interactive: {
+        true: "transition-all duration-300 ease-in-out hover:shadow-md hover:border-primary/40",
+        false: "",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      interactive: false,
+    },
+  },
+)
+
+const Card = ({
+  className,
+  variant,
+  interactive,
+  ...props
+}: React.ComponentProps<"div"> & VariantProps<typeof cardVariants>) => {
   return (
     <div
       data-slot="card"
-      className={cn(
-        "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm",
-        className
-      )}
+      className={cn(cardVariants({ variant, interactive }), className)}
       {...props}
     />
   )

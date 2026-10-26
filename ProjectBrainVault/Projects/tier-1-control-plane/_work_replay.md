@@ -2,42 +2,36 @@
 
 > Regenerated from captures; repeated exact captures are folded into occurrence counts.
 
-## 2026-10-25 · 100 unique captures / 100 occurrences
+## 2026-10-26 · 23 unique captures / 23 occurrences
 
-### Session 1 · 22:19–22:22
-- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792966799064'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792966799064`
-- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792966800193) Reason: Easier DOM replay.
-- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792966800572'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792966800572`
-- **[TERMINAL] Error: Missing Node dependency 'dedup-suite-1792966800858'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-suite-1792966800858`
-- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792966801400) Reason: Easier DOM replay.
-- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792966801759'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792966801759`
-- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792966802701) Reason: Easier DOM replay.
-- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792966803062'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792966803062`
-- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792966809496) Reason: Easier DOM replay.
-- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792966809941'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792966809941`
-- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792966811008) Reason: Easier DOM replay.
-- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792966811349'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792966811349`
-- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792966812400) Reason: Easier DOM replay.
-- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792966812776'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792966812776`
-- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792966813911) Reason: Easier DOM replay.
-- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792966814345'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792966814345`
-- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792966815476) Reason: Easier DOM replay.
-- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792966815935'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792966815935`
-- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792966817090) Reason: Easier DOM replay.
-- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792966817494'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792966817494`
-- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792966860831) Reason: Easier DOM replay.
-- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792966861187'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792966861187`
+### Session 1 · 00:11–00:42
+- **[SESSION] Work Session 2026-10-25 · 21:27–23:59 · 190 captures** — Rolled up 190 captures (96 terminals, 82 notes, 12 screenshots) · topics: error, playwright, decision, instead
 - **[SCREENSHOT] Error: Missing Node dependency 'playwright'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add playwright`
-- **[SESSION] Work Session 2026-10-25 · 21:27–22:21 · 110 captures** — Rolled up 110 captures (56 terminals, 48 notes, 6 screenshots) · topics: error, playwright, decision, instead
-- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792966871547) Reason: Easier DOM replay.
-- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792966872052'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792966872052`
-- **[SESSION] Work Session 2026-10-25 · 21:27–22:21 · 113 captures** — Rolled up 113 captures (57 terminals, 49 notes, 7 screenshots) · topics: error, playwright, decision, instead
-- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792966873376) Reason: Easier DOM replay.
-- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792966873849'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792966873849`
-- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792966875149) Reason: Easier DOM replay.
-- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792966875591'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792966875591`
-- **[TERMINAL] Error: Missing Node dependency 'dedup-suite-1792966875894'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-suite-1792966875894`
-- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792966876507) Reason: Easier DOM replay.
+- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792974894739) Reason: Easier DOM replay.
+- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792974895336'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792974895336`
+- **[SESSION] Work Session 2026-10-25 · 21:27–00:34 · 193 captures** — Rolled up 193 captures (97 terminals, 83 notes, 13 screenshots) · topics: error, playwright, decision, instead
+- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792974897210) Reason: Easier DOM replay.
+- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792974897829'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792974897829`
+- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792974900302) Reason: Easier DOM replay.
+- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792974901054'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792974901054`
+- **[TERMINAL] Error: Missing Node dependency 'dedup-suite-1792974905973'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-suite-1792974905973`
+- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792974907287) Reason: Easier DOM replay.
+- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792974907897'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792974907897`
+- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792974909182) Reason: Easier DOM replay.
+- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792974909789'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792974909789`
+- **[SCREENSHOT] Error: Missing Node dependency 'playwright'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add playwright`
+- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792975330075) Reason: Easier DOM replay.
+- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792975331061'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792975331061`
+- **[SESSION] Work Session 2026-10-25 · 21:27–00:42 · 205 captures** — Rolled up 205 captures (103 terminals, 88 notes, 14 screenshots) · topics: error, playwright, decision, instead
+- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792975333202) Reason: Easier DOM replay.
+- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792975333900'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792975333900`
+- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792975336340) Reason: Easier DOM replay.
+- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792975337050'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792975337050`
+- **[TERMINAL] Error: Missing Node dependency 'dedup-suite-1792975337470'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-suite-1792975337470`
+
+## 2026-10-25 · 77 unique captures / 77 occurrences
+
+### Session 1 · 22:21–22:22
 - **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792966876949'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792966876949`
 - **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792966878055) Reason: Easier DOM replay.
 - **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792966878842'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792966878842`
@@ -81,7 +75,7 @@
 - **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792966923660) Reason: Easier DOM replay.
 - **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792966924260'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792966924260`
 
-### Session 2 · 23:32–23:48
+### Session 2 · 23:32–23:59
 - **[SESSION] Work Session 2026-10-25 · 21:27–22:22 · 158 captures** — Rolled up 158 captures (80 terminals, 68 notes, 10 screenshots) · topics: error, playwright, decision, instead
 - **[SCREENSHOT] Error: Missing Node dependency 'playwright'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add playwright`
 - **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792972073620) Reason: Easier DOM replay.
@@ -107,3 +101,13 @@
 - **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792972099571) Reason: Easier DOM replay.
 - **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792972100144'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792972100144`
 - **[TERMINAL] Error: Missing Node dependency 'dedup-suite-1792972100453'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-suite-1792972100453`
+- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792972101231) Reason: Easier DOM replay.
+- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792972101773'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792972101773`
+- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792972103064) Reason: Easier DOM replay.
+- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792972103628'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792972103628`
+- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792972247991) Reason: Easier DOM replay.
+- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792972248656'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792972248656`
+- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792972601594) Reason: Easier DOM replay.
+- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792972602575'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792972602575`
+- **[NOTE] Decision: Use Playwright trace viewer instead of raw screenshots ** — [reasoning-architect] Decision: Use Playwright trace viewer instead of raw screenshots (rev 1792972775467) Reason: Easier DOM replay.
+- **[TERMINAL] Error: Missing Node dependency 'dedup-probe-1792972776385'** — [codex-agent] Diagnosed ModuleNotFound -> Suggested Fix: `pnpm add dedup-probe-1792972776385`

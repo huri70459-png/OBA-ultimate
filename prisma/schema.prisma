@@ -107,3 +107,32 @@ model Setting {
   value     String   @default("")
   updatedAt DateTime @updatedAt
 }
+
+// Enterprise phase — self-hosted credential account (bootstrap creates the owner).
+// Passwords are scrypt-hashed (salt:hash, both hex); sessions are HMAC-SHA256 JWTs
+// in an httpOnly cookie — no plaintext secret ever reaches the client.
+model UserAccount {
+  id           String   @id
+  email        String   @unique
+  name         String
+  passwordHash String // "salt:hash" scrypt pair
+  role         String   @default("owner") // owner | editor | viewer
+  createdAt    DateTime @default(now())
+  lastLoginAt  DateTime?
+}
+
+// Real-time chat persistence: one thread per project (projectId null = the
+// global Inbox thread). Sources JSON mirrors GroundedSource[] from grounded.ts.
+model ChatMessage {
+  id           String   @id
+  projectId    String? // null = inbox / all-projects thread
+  role         String // user | assistant
+  content      String
+  mode         String   @default("") // ask | synthesize
+  llmUsed      Boolean  @default(false)
+  grounded     Boolean  @default(false)
+  sourcesJson  String   @default("[]")
+  createdAt    DateTime @default(now())
+
+  @@index([projectId, createdAt])
+}

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { apiGuard } from "@/lib/auth";
 import { ensureSeedDataOnce } from "@/lib/brain/seed";
 import {
   computeHealthAndGaps,
@@ -24,9 +25,11 @@ const INBOX_PROJECT: BrainProject = {
 };
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const gate = await apiGuard(req, { mutation: false });
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
   await ensureSeedDataOnce();
   const { id } = await params;
 

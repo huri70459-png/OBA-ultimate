@@ -24,7 +24,7 @@ const LABEL_MAX = 26;
 type LayoutMode = "force" | "columns";
 
 /** Infer a visual kind for every endpoint from the relation it participates in. */
-function inferGraph(edges: GraphEdge[]): {
+export function inferGraph(edges: GraphEdge[]): {
   nodes: GraphViewerNode[];
   links: GraphViewerLink[];
 } {

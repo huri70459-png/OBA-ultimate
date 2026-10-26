@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { apiGuard } from "@/lib/auth";
 import { ensureSeedDataOnce } from "@/lib/brain/seed";
 import { resolveProjectId, searchVaultHybrid, type SearchMode } from "@/lib/brain/store";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  const gate = await apiGuard(req, { mutation: false });
+  if (!gate.ok) return NextResponse.json({ error: gate.error, results: [] }, { status: gate.status });
   await ensureSeedDataOnce();
   const q = req.nextUrl.searchParams.get("q") ?? "";
   const rawId = req.nextUrl.searchParams.get("project_id");

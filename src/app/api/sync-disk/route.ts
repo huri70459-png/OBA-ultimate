@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { apiGuard } from "@/lib/auth";
 import { ensureSeedDataOnce } from "@/lib/brain/seed";
 import { syncMarkdownEditsFromDisk } from "@/lib/brain/store";
 
@@ -10,8 +11,10 @@ export const dynamic = "force-dynamic";
  * or VS Code, the new content is synced into SQLite and the semantic vector
  * is re-embedded so search stays instant and accurate.
  */
-export async function POST() {
+export async function POST(req: NextRequest) {
   try {
+    const gate = await apiGuard(req, { mutation: true });
+    if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
     await ensureSeedDataOnce();
     const stats = await syncMarkdownEditsFromDisk();
     return NextResponse.json(stats);

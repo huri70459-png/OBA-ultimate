@@ -11,6 +11,7 @@
 
 import { randomBytes } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { apiGuard } from "@/lib/auth";
 import { ensureSeedDataOnce } from "@/lib/brain/seed";
 import {
   CLEAR_SENTINEL,
@@ -46,8 +47,11 @@ function envKey(k: SettingKey): string {
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    // Config echo (masked) is session-protected when auth is enforced.
+    const gate = await apiGuard(req, { mutation: false });
+    if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
     await ensureSeedDataOnce();
     const stored = await readSettings();
     const backend = await llmBridge.detectActiveBackend();
@@ -78,6 +82,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const gate = await apiGuard(req, { mutation: true });
+    if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
     await ensureSeedDataOnce();
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
 

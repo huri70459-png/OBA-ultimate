@@ -23,10 +23,15 @@ import {
   useRef,
   useState,
 } from "react";
-import { Maximize, RefreshCw, ZoomIn, ZoomOut } from "lucide-react";
+import { Loader2, Maximize, RefreshCw, ZoomIn, ZoomOut } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
 import { truncate } from "./ui-shared";
+import { useI18n } from "@/lib/i18n";
 
 export type GraphNodeKind = "error" | "fix" | "decision" | "file" | "capture" | "concept";
+
+/** Blueprint ("Layout Algorithms"): force-directed plus guided hierarchical/radial modes. */
+export type GraphLayout = "force" | "hierarchy" | "radial";
 
 export interface GraphViewerNode {
   id: string;
@@ -49,6 +54,8 @@ interface GraphViewerProps {
   height?: number;
   className?: string;
   ariaLabel?: string;
+  /** Blueprint "Loading State": centered spinner overlay while data loads. */
+  loading?: boolean;
 }
 
 interface Sim {
@@ -73,6 +80,8 @@ interface SimContext {
   alphaRef: { current: number };
   rafRef: { current: number | null };
   setPositions: (snapshot: Record<string, { x: number; y: number }>) => void;
+  /** Guided-layout targets; null for the free force layout. */
+  targets: { current: Map<string, { x: number; y: number }> | null };
 }
 
 const MIN_ALPHA = 0.008;
@@ -99,9 +108,111 @@ const RELATIONS = ["FIXED_BY", "DECIDED_ON", "MENTIONED_IN", "RELATED_TO"];
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 /**
- * One animation frame of the force layout: pairwise repulsion (+soft collision),
- * link springs, gravity toward the origin, then damped integration. Reads node
- * data fresh from propsRef every frame so data edits apply mid-animation.
+ * Deterministic target positions for the guided layouts. Hierarchy: BFS layering
+ * from root candidates (no incoming edges, else the highest out-degree node),
+ * layered top-to-bottom. Radial: BFS rings around the highest-degree node.
+ * Pure function — safe for the render path (no randomness).
+ */
+export function computeLayoutTargets(
+  nodes: GraphViewerNode[],
+  links: GraphViewerLink[],
+  layout: GraphLayout,
+): Map<string, { x: number; y: number }> | null {
+  if (layout === "force" || nodes.length === 0) return null;
+  const ids = nodes.map((n) => n.id);
+  const outAdj = new Map<string, string[]>();
+  const inDeg = new Map<string, number>();
+  for (const id of ids) {
+    outAdj.set(id, []);
+    inDeg.set(id, 0);
+  }
+  for (const l of links) {
+    if (!outAdj.has(l.source) || !outAdj.has(l.target) || l.source === l.target) continue;
+    outAdj.get(l.source)!.push(l.target);
+    inDeg.set(l.target, (inDeg.get(l.target) ?? 0) + 1);
+  }
+  const targets = new Map<string, { x: number; y: number }>();
+
+  if (layout === "hierarchy") {
+    let roots = ids.filter((id) => (inDeg.get(id) ?? 0) === 0);
+    if (roots.length === 0) {
+      // Cyclic graph: seed from the most connected node.
+      roots = [ids.reduce((a, b) => (outAdj.get(a)!.length >= outAdj.get(b)!.length ? a : b))];
+    }
+    const layerOf = new Map<string, number>();
+    const queue = roots.map((id) => {
+      layerOf.set(id, 0);
+      return id;
+    });
+    for (let qi = 0; qi < queue.length; qi++) {
+      const cur = queue[qi];
+      const layer = layerOf.get(cur) ?? 0;
+      for (const next of outAdj.get(cur) ?? []) {
+        if (!layerOf.has(next)) {
+          layerOf.set(next, layer + 1);
+          queue.push(next);
+        }
+      }
+    }
+    const maxLayer = Math.max(0, ...[...layerOf.values()]);
+    const buckets: string[][] = Array.from({ length: maxLayer + 1 }, () => []);
+    for (const id of ids) buckets[layerOf.get(id) ?? maxLayer].push(id);
+    buckets.forEach((bucket, layer) => {
+      bucket.forEach((id, i) => {
+        targets.set(id, {
+          x: (i - (bucket.length - 1) / 2) * 120,
+          y: layer * 110,
+        });
+      });
+    });
+    return targets;
+  }
+
+  // radial — BFS rings around the most connected node
+  const totalDeg = (id: string) => (outAdj.get(id)?.length ?? 0) + (inDeg.get(id) ?? 0);
+  const center = ids.reduce((a, b) => (totalDeg(a) >= totalDeg(b) ? a : b));
+  const ringOf = new Map<string, number>([[center, 0]]);
+  const queue = [center];
+  while (queue.length > 0) {
+    const cur = queue.shift()!;
+    const ring = ringOf.get(cur)!;
+    for (const next of outAdj.get(cur) ?? []) {
+      if (!ringOf.has(next)) {
+        ringOf.set(next, ring + 1);
+        queue.push(next);
+      }
+    }
+    for (const id of inDeg.keys()) {
+      // also walk incoming edges so directed-only backlinks land on a ring
+      if (id === cur || ringOf.has(id)) continue;
+      if ((outAdj.get(id) ?? []).includes(cur)) {
+        ringOf.set(id, ring + 1);
+        queue.push(id);
+      }
+    }
+  }
+  const maxRing = Math.max(0, ...[...ringOf.values()]);
+  const rings: string[][] = Array.from({ length: maxRing + 1 }, () => []);
+  for (const id of ids) rings[ringOf.get(id) ?? maxRing].push(id);
+  rings.forEach((ring, d) => {
+    const radius = d === 0 ? 0 : 90 + d * 95;
+    ring.forEach((id, i) => {
+      if (d === 0) {
+        targets.set(id, { x: 0, y: 0 });
+        return;
+      }
+      const angle = (i / ring.length) * Math.PI * 2 + d * 0.55;
+      targets.set(id, { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
+    });
+  });
+  return targets;
+}
+
+/**
+ * One animation frame of the layout: pairwise repulsion (+soft collision), link
+ * springs, then EITHER guided-target pull (hierarchy/radial) or gravity toward
+ * the origin (force), followed by damped integration. Reads node data fresh from
+ * propsRef every frame so data edits apply mid-animation.
  */
 function runSimulation(ctx: SimContext) {
   const { nodes, links } = ctx.propsRef.current;
@@ -149,10 +260,17 @@ function runSimulation(ctx: SimContext) {
     b.vy -= fy;
   }
 
-  // gravity + integrate
-  for (const { s } of list) {
-    s.vx += -s.x * GRAVITY;
-    s.vy += -s.y * GRAVITY;
+  // gravity or guided-target pull + integrate
+  const targets = ctx.targets.current;
+  for (const { id, s } of list) {
+    const target = targets?.get(id);
+    if (target) {
+      s.vx += (target.x - s.x) * 0.055;
+      s.vy += (target.y - s.y) * 0.055;
+    } else {
+      s.vx += -s.x * GRAVITY;
+      s.vy += -s.y * GRAVITY;
+    }
     if (s.fx !== null && s.fy !== null) {
       s.x = s.fx;
       s.y = s.fy;
@@ -185,8 +303,14 @@ export const GraphViewer = ({
   height = 460,
   className = "",
   ariaLabel = "Interactive knowledge graph",
+  loading = false,
 }: GraphViewerProps) => {
+  const { t } = useI18n();
   const svgRef = useRef<SVGSVGElement | null>(null);
+
+  // ---- layout mode (force | hierarchy | radial) ----
+  const [layout, setLayout] = useState<GraphLayout>("force");
+  const targetsRef = useRef<Map<string, { x: number; y: number }> | null>(null);
 
   // ---- simulation state (refs: mutated by the rAF loop; painted via state) ----
   const simRef = useRef<Map<string, Sim>>(new Map());
@@ -259,7 +383,7 @@ export const GraphViewer = ({
 
   // ---- force tick (module-scope loop; self-recursion lives outside React) ----
   const tick = useCallback(() => {
-    runSimulation({ propsRef, sims: simRef.current, alphaRef, rafRef, setPositions });
+    runSimulation({ propsRef, sims: simRef.current, alphaRef, rafRef, setPositions, targets: targetsRef });
   }, [setPositions]);
 
   const reheat = useCallback(
@@ -270,11 +394,12 @@ export const GraphViewer = ({
     [tick],
   );
 
-  // (re)initialize on data change
+  // (re)initialize on data or layout change
   useEffect(() => {
+    targetsRef.current = computeLayoutTargets(nodes, links, layout);
     ensureSims();
     reheat(1);
-  }, [nodes, links, ensureSims, reheat]);
+  }, [nodes, links, layout, ensureSims, reheat]);
 
   // Stop the loop on unmount. rafRef MUST be reset to null: React StrictMode
   // runs effect -> cleanup -> effect in dev, and a stale non-null id would make
@@ -295,9 +420,9 @@ export const GraphViewer = ({
     const rect = el.getBoundingClientRect();
     const px = clientX - rect.left;
     const py = clientY - rect.top;
-    setTransform((t) => {
-      const k = clamp(t.k * factor, 0.2, 3.2);
-      return { k, x: px - ((px - t.x) / t.k) * k, y: py - ((py - t.y) / t.k) * k };
+    setTransform((tr) => {
+      const k = clamp(tr.k * factor, 0.2, 3.2);
+      return { k, x: px - ((px - tr.x) / tr.k) * k, y: py - ((py - tr.y) / tr.k) * k };
     });
   }, []);
 
@@ -337,6 +462,15 @@ export const GraphViewer = ({
     if (!el) return;
     const rect = el.getBoundingClientRect();
     zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, factor);
+  };
+
+  /** Blueprint "Zoom & Pan Controls": slider maps 20..320 percent onto zoom k. */
+  const onSliderZoom = (values: number[]) => {
+    const el = svgRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const desired = clamp(values[0] / 100, 0.2, 3.2);
+    zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, desired / transform.k);
   };
 
   // ---- pointer interactions ----
@@ -391,7 +525,7 @@ export const GraphViewer = ({
       const dx = e.clientX - panRef.current.px;
       const dy = e.clientY - panRef.current.py;
       if (Math.abs(dx) + Math.abs(dy) > 3) panRef.current.moved = true;
-      setTransform((t) => ({ ...t, x: panRef.current!.tx + dx, y: panRef.current!.ty + dy }));
+      setTransform((tr) => ({ ...tr, x: panRef.current!.tx + dx, y: panRef.current!.ty + dy }));
     }
   };
 
@@ -552,6 +686,59 @@ export const GraphViewer = ({
           <RefreshCw className="h-3.5 w-3.5" />
         </ControlButton>
       </div>
+
+      {/* layout selector + zoom slider (blueprint control set) */}
+      <div className="absolute bottom-2 right-2.5 flex items-center gap-2 rounded-lg border border-border bg-card/90 px-2 py-1.5 backdrop-blur">
+        <select
+          value={layout}
+          onChange={(e) => setLayout(e.target.value as GraphLayout)}
+          aria-label="Graph layout algorithm"
+          className="cursor-pointer rounded border border-border bg-background/70 px-1.5 py-0.5 text-[10px] text-foreground focus:outline-none"
+        >
+          <option value="force">{t("graph.layout.force")}</option>
+          <option value="hierarchy">{t("graph.layout.hierarchy")}</option>
+          <option value="radial">{t("graph.layout.radial")}</option>
+        </select>
+        <button
+          type="button"
+          onClick={() => zoomBy(0.8)}
+          aria-label="Zoom out"
+          className="text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ZoomOut className="h-3 w-3" />
+        </button>
+        <Slider
+          value={[Math.round(transform.k * 100)]}
+          min={20}
+          max={320}
+          step={5}
+          onValueChange={onSliderZoom}
+          aria-label="Zoom level"
+          className="w-20"
+        />
+        <button
+          type="button"
+          onClick={() => zoomBy(1.25)}
+          aria-label="Zoom in"
+          className="text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ZoomIn className="h-3 w-3" />
+        </button>
+        <span className="w-8 text-right text-[10px] tabular-nums text-muted-foreground">
+          {Math.round(transform.k * 100)}%
+        </span>
+      </div>
+
+      {loading && (
+        <div
+          className="absolute inset-0 z-10 flex items-center justify-center bg-card/80 backdrop-blur-sm"
+          role="status"
+          aria-label="Loading graph"
+        >
+          <Loader2 className="h-7 w-7 animate-spin text-primary" />
+        </div>
+      )}
+
       <div className="pointer-events-none absolute bottom-2 left-3 text-[10px] text-muted-foreground/70">
         drag nodes · scroll to zoom · drag canvas to pan · click a node to inspect
       </div>
