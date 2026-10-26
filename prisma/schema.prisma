@@ -172,18 +172,29 @@ model Action {
 // v2.5 — Durable capture audit / idempotency ledger. Every accepted capture
 // records one row keyed by the sanitized content hash: an identical payload
 // landing again folds into the same job (attempts + 1) instead of duplicating.
+// v2.6 trust plane — the same table now carries the GENERIC durable job queue
+// (blueprint Phase 1): any BrainJobKind can ride it with leases, run-after
+// scheduling, exponential backoff and a dead-letter state. Capture-ledger
+// rows keep status "completed" and are never claimed by the queue worker.
 model CaptureJob {
-  id             String   @id
-  idempotencyKey String   @unique
-  payloadJson    String   @default("")
-  status         String   @default("completed") // pending | processing | completed | failed
-  attempts       Int      @default(1)
-  lastError      String   @default("")
+  id             String    @id
+  idempotencyKey String    @unique
+  kind           String    @default("CAPTURE") // CAPTURE | OCR_ASSET | EMBED_ITEM | RECONCILE_VAULT | PROJECT_COMPRESS | ...
+  payloadJson    String    @default("")
+  status         String    @default("completed") // pending | processing | completed | failed | dead
+  attempts       Int       @default(1)
+  maxAttempts    Int       @default(5)
+  runAfter       DateTime  @default(now())
+  lockedAt       DateTime?
+  lockedBy       String?
+  lastError      String    @default("")
   resultItemId   String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([status, createdAt])
+  @@index([status, runAfter])
+  @@index([kind, status])
 }
 
 // v2.5 — Document version history for two-way vault editing. Every content
@@ -200,4 +211,46 @@ model ItemRevision {
   item Item @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   @@index([itemId, createdAt])
+}
+
+// v2.6 trust plane (blueprint Phase 1) — queryable ledger for persisted capture
+// assets. The binary lives in the vault (vision-ocr writes assets/); this row
+// adds sha256 identity (the same screenshot posted twice REUSES the stored file
+// instead of writing a second copy), OCR provider/text state, and evidence that
+// outlives item deletion (append-only, deliberately no FK on Item/Project).
+model BrainAsset {
+  id           String   @id
+  projectId    String?
+  itemId       String?
+  storagePath  String   @unique
+  mimeType     String   @default("image/png")
+  bytes        Int      @default(0)
+  sha256       String   @unique
+  provider     String   @default("local-asset-store") // vision provider that produced ocrText
+  ocrText      String   @default("")
+  processing   String   @default("completed") // pending | completed | failed
+  errorMessage String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([projectId, createdAt])
+}
+
+// v2.6 trust plane (blueprint Phase 1) — append-only audit trail. Every
+// state-changing action that matters (captures, edits, fix verifications,
+// job failures) records who/what/when with structured details. Writers are
+// never-throws: auditing must never break the operation it observes.
+model BrainAuditEvent {
+  id          String   @id
+  projectId   String?
+  actorType   String   @default("system") // user | agent | system | llm
+  actorId     String?
+  eventType   String
+  entityType  String   @default("Item")
+  entityId    String?
+  detailsJson String   @default("{}")
+  createdAt   DateTime @default(now())
+
+  @@index([eventType, createdAt])
+  @@index([projectId, createdAt])
 }

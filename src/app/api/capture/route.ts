@@ -4,6 +4,8 @@ import { ensureSeedDataOnce } from "@/lib/brain/seed";
 import { capture } from "@/lib/brain/pipeline";
 import { compressProjectMemory } from "@/lib/brain/compressor";
 import { enrichCaptureInput, recordCaptureJob } from "@/lib/brain/ingest";
+import { recordAuditEvent } from "@/lib/brain/audit";
+import { linkAssetToItem } from "@/lib/brain/assets";
 import { gateCaptureRequest } from "@/lib/brain/capture-schema";
 
 export const dynamic = "force-dynamic";
@@ -74,6 +76,27 @@ export async function POST(req: NextRequest) {
       resultItemId: result.item.id,
     }).catch(() => null);
 
+    // v2.6 trust plane — append-only audit trail (never throws into the capture
+    // path) + asset ledger back-link so visual evidence is queryable per item.
+    await recordAuditEvent({
+      projectId: result.item.projectId ?? result.projectMatch?.projectId ?? null,
+      actorType: gate.viaAgent ? "agent" : "user",
+      eventType: "capture.created",
+      entityType: "Item",
+      entityId: result.item.id,
+      details: {
+        status: result.status,
+        content_hash: enriched.contentHash,
+        redactions: enriched.redactionCount,
+        ocr_provider: enriched.ocr.used ? enriched.ocr.provider : null,
+        asset_reused: enriched.assetReused,
+        source_app: result.item.sourceApp,
+      },
+    });
+    if (enriched.assetSha256 && enriched.assetPath) {
+      await linkAssetToItem(enriched.assetPath, result.item.id);
+    }
+
     // v2 wiring (brain_api.py parity): automatically re-compress project memory
     // whenever a NEW capture lands so Tier-1 rolling memory is always fresh.
     // v2.1: duplicate merges return early like brain_api.py — the item content did
@@ -83,6 +106,7 @@ export async function POST(req: NextRequest) {
         ...result,
         memory_compression: { skipped: true, reason: "duplicate_merged" },
         content_hash: enriched.contentHash,
+        asset_reused: enriched.assetReused,
         privacy: { redaction_count: enriched.redactionCount },
         ...(enriched.ocr.used ? { ocr: { provider: enriched.ocr.provider } } : {}),
         ...(job ? { capture_job: job } : {}),
@@ -95,6 +119,7 @@ export async function POST(req: NextRequest) {
         ...result,
         memory_compression: compression,
         content_hash: enriched.contentHash,
+        asset_reused: enriched.assetReused,
         privacy: { redaction_count: enriched.redactionCount },
         ...(enriched.ocr.used ? { ocr: { provider: enriched.ocr.provider } } : {}),
         ...(job ? { capture_job: job } : {}),
@@ -104,6 +129,7 @@ export async function POST(req: NextRequest) {
       ...result,
       memory_compression: { skipped: true },
       content_hash: enriched.contentHash,
+      asset_reused: enriched.assetReused,
       privacy: { redaction_count: enriched.redactionCount },
       ...(enriched.ocr.used ? { ocr: { provider: enriched.ocr.provider } } : {}),
       ...(job ? { capture_job: job } : {}),

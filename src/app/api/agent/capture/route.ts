@@ -26,6 +26,8 @@ import { capture } from "@/lib/brain/pipeline";
 import { compressProjectMemory } from "@/lib/brain/compressor";
 import { checkAgentToken } from "@/lib/brain/settings";
 import { enrichCaptureInput, recordCaptureJob } from "@/lib/brain/ingest";
+import { recordAuditEvent } from "@/lib/brain/audit";
+import { linkAssetToItem } from "@/lib/brain/assets";
 import { gateCaptureRequest } from "@/lib/brain/capture-schema";
 
 export const dynamic = "force-dynamic";
@@ -161,6 +163,28 @@ export async function POST(req: NextRequest) {
       resultItemId: result.item.id,
     }).catch(() => null);
 
+    // v2.6 trust plane — agent path gets the same append-only audit trail (the
+    // desktop agent must never be a silent writer) + asset ledger back-link.
+    await recordAuditEvent({
+      projectId: result.item.projectId ?? result.projectMatch?.projectId ?? null,
+      actorType: auth.required ? "agent" : "user",
+      eventType: "capture.created",
+      entityType: "Item",
+      entityId: result.item.id,
+      details: {
+        status: result.status,
+        content_hash: enriched.contentHash,
+        redactions: enriched.redactionCount,
+        ocr_provider: enriched.ocr.used ? enriched.ocr.provider : null,
+        asset_reused: enriched.assetReused,
+        source_app: result.item.sourceApp,
+        via: "agent_endpoint",
+      },
+    });
+    if (enriched.assetSha256 && enriched.assetPath) {
+      await linkAssetToItem(enriched.assetPath, result.item.id);
+    }
+
     // 4. v2 wiring parity with /api/capture: auto re-compress matched project
     //    (skipped on duplicate merges — content did not change, only the counter).
     let memoryCompression: unknown = { skipped: true, reason: "duplicate_merged" };
@@ -195,6 +219,7 @@ export async function POST(req: NextRequest) {
       memory_compression: memoryCompression,
       // v2.5 ingest-layer reporting (parity with /api/capture)
       content_hash: enriched.contentHash,
+      asset_reused: enriched.assetReused,
       privacy: { redaction_count: enriched.redactionCount },
       ...(enriched.ocr.used ? { ocr: { provider: enriched.ocr.provider } } : {}),
       ...(job ? { capture_job: job } : {}),

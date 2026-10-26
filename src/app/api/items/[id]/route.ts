@@ -30,6 +30,7 @@ import { addGraphEdge, buildItemMarkdown, getProjectById, toItem, writeVaultFile
 import { embedForStorage, newVectorId } from "@/lib/brain/embeddings";
 import { contentHashOf, redactSecretsInText } from "@/lib/brain/privacy-redactor";
 import { isFixVerificationStatus } from "@/lib/brain/action-verifier";
+import { recordAuditEvent } from "@/lib/brain/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -210,6 +211,21 @@ export async function PATCH(
         await addGraphEdge(updated.projectId, updated.title, updatedMeta.fix, "VERIFIED_BY");
       }
     }
+
+    // v2.6 trust plane — edits and fix verifications are auditable state
+    // changes (never-throw: the audit must not fail the edit itself).
+    await recordAuditEvent({
+      projectId: updated.projectId,
+      actorType: gate.viaAgent ? "agent" : "user",
+      eventType: body.fix_status === "verified" ? "fix.verified" : "item.updated",
+      entityType: "Item",
+      entityId: updated.id,
+      details: {
+        content_changed: contentChanged,
+        fix_status: body.fix_status !== undefined ? String(body.fix_status) : null,
+        vault_sync_status: vaultSyncStatus,
+      },
+    });
 
     return NextResponse.json({
       status: "updated",

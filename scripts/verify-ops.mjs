@@ -60,9 +60,12 @@ const metricsBytes = () => (existsSync(metricsFile) ? statSync(metricsFile).size
   const wfPath = join(ROOT, ".github", "workflows", "ci.yml");
   const wf = existsSync(wfPath) ? readFileSync(wfPath, "utf8") : "";
   check(
-    "A1 CI pipeline: lint + type-check + build + prisma + regression stages",
-    ["npm run lint", "npm run type-check", "npm run build", "prisma generate", "npm run test:regression"].every((s) => wf.includes(s)),
-    wf ? "stages found in .github/workflows/ci.yml" : "workflow file missing"
+    "A1 CI pipeline: lint + type-check + build + prisma + full board (test umbrella)",
+    ["npm run lint", "npm run type-check", "npm run build", "prisma generate"].every((s) => wf.includes(s)) &&
+      // v2.6: the board stage is `npm run test` = test:regression + test:trust
+      // (umbrella contract; the bare-word anchor keeps it distinct from test:*)
+      /run: npm run test\s*$/m.test(wf),
+    wf ? "stages found in .github/workflows/ci.yml (board = regression + trust umbrella)" : "workflow file missing"
   );
   check(
     "A2 CI boots the production server and uploads failure logs",

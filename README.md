@@ -2,7 +2,7 @@
 
 A local-first **universal knowledge capture, memory, and execution system** — a single workspace that watches what you do, remembers what mattered, and hands the right context back to any AI agent before it drifts.
 
-Engine **v2.5** (Privacy Guard + Vision OCR + Closed-Loop Fixes + Two-Way Editing + MCP) with v2.6 boundary hardening (schema-validated capture, body-size caps, durable vault-sync state).
+Engine **v2.5** (Privacy Guard + Vision OCR + Closed-Loop Fixes + Two-Way Editing + MCP) with v2.6 boundary hardening (schema-validated capture, body-size caps, durable vault-sync state) **and the v2.6 Trust & Control Plane** (append-only audit trail, sha256-deduplicated asset ledger, durable job queue with leases/backoff/dead-letter, provenance primitives).
 
 ## What it does
 
@@ -33,15 +33,20 @@ npm run db:migrate:deploy     # prisma migrate deploy (uses prisma/migrations)
 
 ## Verification
 
-The repository carries its own regression board — **239 checks across 9 suites**, all runnable against a live dev server:
+The repository carries its own regression board — **273 checks across 10 suites**, all runnable against a live dev server:
 
 ```bash
+npm run test                  # full board = test:regression + test:trust
 npm run test:regression       # blueprint 31, upgrade 21, v2 20, v2.1 23, v2.2 19,
-                              # enterprise 34, ops 23, realtime 29, v2.5 39
+                              # enterprise 34, ops 23, realtime 29, v2.5 45
+npm run test:trust            # trust plane 28 (repo gate, audit, assets, queue)
+npm run test:core             # the four foundational suites (blueprint..v2.1)
 npm run type-check            # tsc --noEmit
 npm run lint                  # eslint .
-npm run ci                    # lint + type-check + build
+npm run ci                    # db:generate + lint + type-check + build
 ```
+
+CI boots the standalone server against a fresh SQLite database and runs the full board on every push/PR.
 
 ## Architecture map
 
@@ -63,15 +68,23 @@ src/lib/brain/
   compressor.ts       Tier-1 rolling memory / work-session daemon
   dedup.ts            exact-duplicate folding inside a project-scoped window
   embeddings.ts       brain-hash-v1 deterministic offline embeddings (sidecar table)
+  audit.ts            append-only audit trail (never-throw writers) + /api/audit
+  assets.ts           sha256-deduplicated asset ledger (evidence outlives items)
+  jobs.ts             durable job queue on CaptureJob: leases, run-after,
+                      exponential backoff, dead-letter, stale-lease reclaim
+  job-worker.ts       drain pass + registered handlers (RECONCILE_VAULT,
+                      PROJECT_COMPRESS wired to real engine work)
+  provenance.ts       source-ref primitives every derived artifact will embed
 
 src/app/api/          health, projects (+[id]), capture, agent/capture (token auth),
                       items/[id] (PATCH: edit + fix lifecycle + revisions + 409),
                       decisions, timeline, search, context, triage, resolve,
-                      metrics, feature-flags, feedback, daemon, self-test, llm-backend
+                      metrics, feature-flags, feedback, daemon, self-test, llm-backend,
+                      jobs (durable queue: stats/enqueue/drain), audit (trail read)
 scripts/
   mcp_server.mjs      JSON-RPC 2.0 stdio MCP server (6 tools)
   desktop_agent.py    stdlib-only desktop agent (clipboard/snip/screenshot/watch)
-  verify-*.mjs        the 9 regression suites (npm run test:regression)
+  verify-*.mjs        the 10 regression suites (npm run test)
 mini-services/
   realtime-service    optional socket.io relay (chat presence/typing/peer notes);
                       the app degrades silently without it
@@ -108,6 +121,18 @@ Every item carries durable `vaultSyncStatus` (`pending | synced | failed`) — a
 ## Search — honest maturity note
 
 Text search is Prisma `contains` + custom scoring; semantic search is deterministic hashed features (`brain-hash-v1`) — a deliberate offline-first baseline, **not** SQLite FTS5/BM25 and **not** a neural embedding model. FTS5, chunked documents, and a true embeddings provider behind a feature flag are roadmap items.
+
+## Trust & Control Plane
+
+Everything the engine derives or executes rides on an auditable substrate (blueprint "Trust, Provenance, and Job Foundation"):
+
+- **Append-only audit trail** — every capture, edit, fix verification, and job failure writes a `BrainAuditEvent` (actor, event type, structured details). Writers are never-throw: auditing can never break the operation it observes. Read it via `GET /api/audit?event_type=capture.created&limit=50`.
+- **Asset ledger with sha256 identity** — screenshots persist to the vault once; posting the same bytes again **reuses** the stored file and its OCR result (`asset_reused: true` in the response) instead of writing a second copy. Rows outlive item deletion — visual evidence is never destroyed by downstream cleanup.
+- **Durable job queue** — `CaptureJob` carries generic job kinds (`RECONCILE_VAULT`, `PROJECT_COMPRESS`, `EMBED_ITEM`, `EXTRACT_ITEM`, ...) with worker leases, stale-lease reclaim, exponential backoff, and a dead-letter state; every failure stays visible with its error and is retryable. `POST /api/jobs {"action":"enqueue"|"drain"}` drives it; only kinds with a registered handler are ever claimed.
+- **Provenance primitives** — serialized source-ref lists (`itemIds` + spans) that every derived artifact (summaries, claims, RAG answers — Phase 3) must embed, so "which items supported this?" always has an answer.
+- **Repo gate** — no secrets, databases, vault content, logs, or generated runtime files are tracked; fresh clones reproduce via `db:migrate:deploy` or `db:push`.
+
+All of the above is pinned by the committed `scripts/verify-trust.mjs` suite — 28 checks covering the repo gate, schema/tables, module wiring, the live audit trail, asset dedup, and queue mechanics (enqueue → drain → backoff) — inside the 10-suite regression board.
 
 ## Notes
 

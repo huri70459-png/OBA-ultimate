@@ -5,7 +5,8 @@
 #   - npm (this repo has package-lock.json), not yarn
 #   - `npx prisma generate` before build (the client must exist for next build)
 #   - the TEST stage is REAL: the standalone server boots against a fresh SQLite
-#     database and the full 7-suite regression board (~168 checks) runs against it
+#     database and the full 10-suite regression board (273+ checks) runs against it
+#     via `npm run test` (test:regression + test:trust umbrella)
 #   - no Vercel deploy step: this deployment target is Docker/self-hosted
 #     (Vercel would also break the local-first vault + SQLite contract);
 #     the Docker image IS the deployable artifact (blueprint "Artifact Generation")
@@ -78,8 +79,8 @@ jobs:
           done
           curl -sf http://localhost:3000/api/health
 
-      - name: Run Full Regression Board (~168 checks, 7 suites)
-        run: npm run test:regression
+      - name: Run Full Regression Board (10 suites, 273+ checks)
+        run: npm run test
 
       - name: Collect Logs on Failure
         if: failure()

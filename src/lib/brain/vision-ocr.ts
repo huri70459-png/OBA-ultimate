@@ -23,6 +23,8 @@ import { effectiveSetting } from "./settings";
 export interface VisionOcrResult {
   extractedText: string;
   visualSemanticDescription: string;
+  /** v2.6 trust plane: mime of the persisted asset (ledger records it). */
+  mimeType: string;
   detectedError?: {
     error: string;
     rootCause: string;
@@ -124,6 +126,7 @@ export async function processScreenshotAndOcr(params: {
                 }
               : undefined,
           savedAssetPath,
+          mimeType: `image/${ext}`,
           providerUsed: "openai-vision",
         };
       }
@@ -137,6 +140,7 @@ export async function processScreenshotAndOcr(params: {
     extractedText: params.fallbackText || `Screenshot captured from ${params.windowTitle || "Desktop"}`,
     visualSemanticDescription: `Visual capture of ${params.windowTitle || "application window"}`,
     savedAssetPath,
+    mimeType: `image/${ext}`,
     providerUsed: "local-asset-store",
   };
 }

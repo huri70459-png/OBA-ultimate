@@ -16,6 +16,12 @@ import { detectProject } from "./router";
 import { resolveProjectId, getProjectById } from "./store";
 import { contentHashOf, sanitizeAndValidateCapture } from "./privacy-redactor";
 import { processScreenshotAndOcr } from "./vision-ocr";
+import {
+  byteSizeOfBase64,
+  findAssetBySha256,
+  recordAssetLedger,
+  sha256OfBase64,
+} from "./assets";
 
 export interface EnrichedCaptureInput {
   rawContent: string;
@@ -40,6 +46,9 @@ export type EnrichedCaptureResult =
       contentHash: string;
       redactionCount: number;
       ocr: { used: true; provider: string } | { used: false };
+      // v2.6 trust plane: sha256 asset-identity reporting (dedup + ledger)
+      assetReused: boolean;
+      assetSha256: string | null;
     };
 
 /** Resolves where a screenshot asset should live (project slug or Inbox). */
@@ -81,20 +90,55 @@ export async function enrichCaptureInput(
   let visualHint = input.visualHint ?? "";
   let assetPath = input.assetPath ?? "";
   let ocr: { used: true; provider: string } | { used: false } = { used: false };
+  let assetReused = false;
+  let assetSha256: string | null = null;
 
   if (input.imageBase64) {
-    const slug = await assetSlugFor(input);
-    const ocrResult = await processScreenshotAndOcr({
-      imageBase64: input.imageBase64,
-      projectSlug: slug,
-      itemId: `cap_${randomUUID().replace(/-/g, "").slice(0, 10)}`,
-      windowTitle: input.windowTitle,
-      fallbackText: enriched,
-    });
-    if (ocrResult.extractedText) enriched = ocrResult.extractedText;
-    if (ocrResult.visualSemanticDescription) visualHint = ocrResult.visualSemanticDescription;
-    if (ocrResult.savedAssetPath) assetPath = ocrResult.savedAssetPath;
-    ocr = { used: true, provider: ocrResult.providerUsed };
+    // v2.6 trust plane: sha256 asset identity. The SAME screenshot posted twice
+    // reuses the stored file + stored OCR result instead of writing a second
+    // copy or re-running a vision call (disk-fill + cost vector closed). The
+    // ledger records provider + text so a reused asset reports byte-identical
+    // semantics to the original capture.
+    const sha = sha256OfBase64(input.imageBase64);
+    assetSha256 = sha;
+    let reused: Awaited<ReturnType<typeof findAssetBySha256>> = null;
+    try {
+      reused = await findAssetBySha256(sha);
+    } catch {
+      reused = null; // ledger read failure must never fail the capture
+    }
+
+    if (reused) {
+      assetPath = reused.storagePath;
+      if (reused.ocrText) enriched = reused.ocrText;
+      if (!visualHint) visualHint = `Visual capture (asset sha256 ${sha.slice(0, 12)} reused)`;
+      ocr = { used: true, provider: reused.provider || "local-asset-store" };
+      assetReused = true;
+    } else {
+      const slug = await assetSlugFor(input);
+      const ocrResult = await processScreenshotAndOcr({
+        imageBase64: input.imageBase64,
+        projectSlug: slug,
+        itemId: `cap_${randomUUID().replace(/-/g, "").slice(0, 10)}`,
+        windowTitle: input.windowTitle,
+        fallbackText: enriched,
+      });
+      if (ocrResult.extractedText) enriched = ocrResult.extractedText;
+      if (ocrResult.visualSemanticDescription) visualHint = ocrResult.visualSemanticDescription;
+      if (ocrResult.savedAssetPath) assetPath = ocrResult.savedAssetPath;
+      ocr = { used: true, provider: ocrResult.providerUsed };
+      // Ledger write is best-effort: an asset-bookkeeping failure must never
+      // fail the capture itself (raw evidence is already safe on disk).
+      await recordAssetLedger({
+        storagePath: ocrResult.savedAssetPath,
+        sha256: sha,
+        mimeType: ocrResult.mimeType,
+        bytes: byteSizeOfBase64(input.imageBase64),
+        provider: ocrResult.providerUsed,
+        ocrText: ocrResult.extractedText.slice(0, 20000),
+        processing: "completed",
+      }).catch(() => null);
+    }
   }
 
   // Hash the FINAL stored content (post-redaction, post-OCR) — this is the
@@ -109,6 +153,8 @@ export async function enrichCaptureInput(
     contentHash,
     redactionCount: privacy.redactionCount,
     ocr,
+    assetReused,
+    assetSha256,
   };
 }
 
