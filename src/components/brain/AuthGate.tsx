@@ -15,7 +15,7 @@
 // dying mid-use swaps the workspace for the login card immediately.
 
 import { useEffect, useState } from "react";
-import { Loader2, LogIn, ShieldCheck } from "lucide-react";
+import { Loader2, LogIn, ShieldCheck, KeyRound } from "lucide-react";
 import { apiGet, AUTH_EXPIRED_EVENT } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -36,15 +36,19 @@ const AuthGate = ({ children }: { children: React.ReactNode }) => {
 
   const [skipped, setSkipped] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [bootSession, setBootSession] = useState<SessionResponse | null>(null);
 
   useEffect(() => {
     const check = async () => {
       try {
         const data = await apiGet<SessionResponse>("/api/auth/session");
+        setBootSession(data);
         setSession(data);
       } catch {
         // If the session endpoint itself is unreachable, stay open (pre-auth parity)
-        setSession({ mode: "open", authenticated: false, needs_setup: false, user: null });
+        const fallback = { mode: "open" as const, authenticated: false, needs_setup: false, user: null };
+        setBootSession(fallback);
+        setSession(fallback);
       }
     };
     void check();
@@ -56,14 +60,16 @@ const AuthGate = ({ children }: { children: React.ReactNode }) => {
     return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
   }, [setSession]);
 
-  if (status === "open" || status === "authenticated" || (status === "setup" && skipped)) {
+  // Keep the gate tied to the freshly verified server session. Persisted client
+  // state can hydrate after this effect and must never make a valid cookie look
+  // logged out (or keep the login card visible after a successful PIN login).
+  if (bootSession?.mode === "open" || bootSession?.authenticated || status === "open" || status === "authenticated" || (status === "setup" && skipped)) {
     return <>{children}</>;
   }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const ok =
-      status === "setup"
+    const ok = status === "setup"
         ? await setup({ name: form.name, email: form.email, password: form.password })
         : await login({ email: form.email, password: form.password });
     if (ok) window.location.reload(); // clean slate: re-boot the workspace authenticated
@@ -160,6 +166,13 @@ const AuthGate = ({ children }: { children: React.ReactNode }) => {
             )}
           </button>
         </form>
+
+        {status !== "setup" && (
+          <div className="mt-3 flex justify-center gap-4 text-[11px] text-muted-foreground">
+            <a href="/recover" className="flex items-center gap-1.5 transition-colors hover:text-foreground"><KeyRound className="h-3 w-3" /> Forgot password?</a>
+            <a href="/local-pin" className="transition-colors hover:text-foreground">Use local PIN</a>
+          </div>
+        )}
 
         {status === "setup" && (
           <button

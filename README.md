@@ -44,6 +44,8 @@ Copy `.env.example` to `.env`. The important values are:
 - `DATABASE_URL`: SQLite URL, normally `file:./db/custom.db` locally.
 - LLM provider keys/base URLs: optional; offline mode works without them.
 - Auth/session settings: use Settings or the protected deployment environment.
+- `AUTH_RECOVERY_CODE`: optional operator-controlled recovery code. Set a long random value in the runtime environment, click **Forgot password?** on the lock screen, and enter the owner email, recovery code, and a new password. Recovery is disabled when unset; never commit the code.
+- `AUTH_LOCAL_PIN`: optional local quick-unlock PIN. It is intentionally labeled **Use local PIN** because a numeric PIN is not a device-bound WebAuthn passkey. Enable it only for a trusted local machine.
 - Agent ingest token: configure through Settings; never commit it.
 
 Project scanning is manual by default. The Dashboard can enable automatic per-project rescans. It only runs while the app is open and uses the same extension, secret, directory, and size filters as manual scans.
