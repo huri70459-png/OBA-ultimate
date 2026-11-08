@@ -5,9 +5,9 @@
 
 FROM node:20-slim AS deps
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY package.json ./
 COPY prisma ./prisma
-RUN npm ci
+RUN npm install
 RUN npx prisma generate
 
 FROM node:20-slim AS builder
@@ -27,20 +27,24 @@ ENV DATABASE_URL="file:/app/db/custom.db"
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssl \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN groupadd -r brainos && useradd -r -g brainos brainos
 
 # Standalone server + static assets + public files
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
+COPY --from=builder /app/node_modules ./node_modules
 
 # Prisma schema + CLI so the entrypoint can create/migrate the SQLite DB on boot
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 
-RUN mkdir -p /app/db /app/logs /app/ProjectBrainVault && chown -R brainos:brainos /app
+RUN mkdir -p /app/db /app/logs /app/ProjectBrainVault \
+    && chown brainos:brainos /app/db /app/logs /app/ProjectBrainVault \
+    && chown -R brainos:brainos /app/node_modules/@prisma
 USER brainos
 VOLUME ["/app/db", "/app/logs", "/app/ProjectBrainVault"]
 
