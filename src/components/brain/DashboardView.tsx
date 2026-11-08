@@ -92,10 +92,15 @@ const DashboardView = () => {
   const loadingDetails = useWorkspace((s) => s.loadingDetails);
   const [autoIndex, setAutoIndex] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [indexProject, setIndexProject] = useState(selectedId);
 
-  useEffect(() => {
+  // Re-read the per-project auto-rescan preference when the selection changes.
+  // Adjusted during render (React-endorsed pattern) instead of syncing in an
+  // effect, so no cascading render is triggered.
+  if (selectedId !== indexProject) {
+    setIndexProject(selectedId);
     setAutoIndex(localStorage.getItem(`brain-auto-index:${selectedId ?? ""}`) === "on");
-  }, [selectedId]);
+  }
 
   useEffect(() => {
     if (!autoIndex || !selectedId || selectedId === "inbox") return;

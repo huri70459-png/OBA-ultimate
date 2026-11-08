@@ -15,8 +15,8 @@ export const DEFAULT_IGNORED_DIRS = new Set([
 const SECRET_NAMES = [/^\.env(?:\..*)?$/i, /(^|\.)秘密/i, /secret|credential|private[-_.]?key/i, /\.pem$/i, /\.key$/i];
 
 export type ScanDecision = "import" | "unchanged" | "skipped" | "error";
-export type ScanFile = { absolutePath: string; relativePath: string; content: string; hash: string; bytes: number };
-export type ScanResult = { files: ScanFile[]; skipped: Array<{ path: string; reason: string }>; errors: Array<{ path: string; error: string }> };
+export interface ScanFile { absolutePath: string; relativePath: string; content: string; hash: string; bytes: number }
+export interface ScanResult { files: ScanFile[]; skipped: Array<{ path: string; reason: string }>; errors: Array<{ path: string; error: string }> }
 
 export function isSecretPath(relativePath: string): boolean {
   return relativePath.split(/[\\/]/).some((part) => SECRET_NAMES.some((pattern) => pattern.test(part)));

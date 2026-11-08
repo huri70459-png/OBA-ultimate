@@ -15,6 +15,9 @@ export type WorkspaceTab = "dashboard" | "vault" | "timeline" | "graph" | "conte
 /** Monotonic id for loadDetails requests — only the latest may touch state. */
 let latestDetailsRequestId = 0;
 
+/** Guards overlapping scans: the 30s auto-rescan must never pile onto a slow manual scan. */
+let scanInFlight = false;
+
 interface DialogState {
   captureOpen: boolean;
   newProjectOpen: boolean;
@@ -143,12 +146,13 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
 
   scanProject: async () => {
     const id = get().selectedId;
-    if (!id || id === "inbox") return null;
+    if (!id || id === "inbox" || scanInFlight) return null;
+    scanInFlight = true;
     try {
       const result = await apiPost<{ imported: number; unchanged: number; skipped: number; errors: number }>("/api/project-scan", { projectId: id });
       await get().refreshAll();
       return result;
-    } catch { return null; }
+    } catch { return null; } finally { scanInFlight = false; }
   },
 
   setTab: (tab) => set({ tab }),

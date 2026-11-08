@@ -51,9 +51,9 @@ async function jfetch(path, opts) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      raw_content: `Quick thought: session rollup groups captures that happen within 90 minutes of each other [run ${Date.now()}]`,
+      raw_content: `Pytest red: 3 failed in tests/test_login.py — KeyError on the session fixture [run ${Date.now()}]`,
       item_type: "note",
-      window_title: "notes.md - project-brain-os - VS Code",
+      window_title: "test output - project-brain-os - Windows Terminal",
       source_app: "UpgradeVerifySuite",
     }),
   });
