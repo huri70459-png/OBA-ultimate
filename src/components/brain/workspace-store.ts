@@ -43,6 +43,7 @@ interface WorkspaceState extends DialogState {
   loadDetails: (id?: string) => Promise<void>;
   refreshAll: () => Promise<void>;
   compressMemory: () => Promise<CompressionReport | null>;
+  scanProject: () => Promise<{ imported: number; unchanged: number; skipped: number; errors: number } | null>;
   setTab: (t: WorkspaceTab) => void;
   openDialog: (d: keyof DialogState) => void;
   closeDialog: (d: keyof DialogState) => void;
@@ -136,6 +137,16 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
     } finally {
       set({ compressing: false });
     }
+  },
+
+  scanProject: async () => {
+    const id = get().selectedId;
+    if (!id || id === "inbox") return null;
+    try {
+      const result = await apiPost<{ imported: number; unchanged: number; skipped: number; errors: number }>("/api/project-scan", { projectId: id });
+      await get().refreshAll();
+      return result;
+    } catch { return null; }
   },
 
   setTab: (tab) => set({ tab }),

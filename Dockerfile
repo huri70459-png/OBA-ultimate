@@ -6,8 +6,9 @@
 FROM node:20-slim AS deps
 WORKDIR /app
 COPY package.json ./
+COPY package-lock.json ./
 COPY prisma ./prisma
-RUN npm install
+RUN npm ci --omit=optional --ignore-scripts
 RUN npx prisma generate
 
 FROM node:20-slim AS builder

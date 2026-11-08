@@ -10,6 +10,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
 import {
   Activity,
   BrainCircuit,
@@ -22,7 +23,8 @@ import {
   Stethoscope,
   Zap,
   ArrowRight,
-  FolderPlus,
+    FolderPlus,
+    ScanSearch,
 } from "lucide-react";
 import { apiGet } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n";
@@ -84,9 +86,29 @@ const DashboardView = () => {
   const openDialog = useWorkspace((s) => s.openDialog);
   const setTab = useWorkspace((s) => s.setTab);
   const compressMemory = useWorkspace((s) => s.compressMemory);
+  const scanProject = useWorkspace((s) => s.scanProject);
   const selectedId = useWorkspace((s) => s.selectedId);
   const details = useWorkspace((s) => s.details);
   const loadingDetails = useWorkspace((s) => s.loadingDetails);
+  const [autoIndex, setAutoIndex] = useState(false);
+  const [scanning, setScanning] = useState(false);
+
+  useEffect(() => {
+    setAutoIndex(localStorage.getItem(`brain-auto-index:${selectedId ?? ""}`) === "on");
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (!autoIndex || !selectedId || selectedId === "inbox") return;
+    const timer = window.setInterval(() => { void scanProject(); }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [autoIndex, selectedId, scanProject]);
+
+  const scan = async () => {
+    setScanning(true);
+    const result = await scanProject();
+    setScanning(false);
+    toast({ title: result ? "Project scan complete" : "Project scan failed", description: result ? `${result.imported} imported · ${result.unchanged} unchanged · ${result.skipped} skipped · ${result.errors} errors` : "Check the project path and permissions.", variant: result ? "default" : "destructive" });
+  };
 
   const dashboard = useQuery({
     queryKey: ["dashboard"],
@@ -159,6 +181,13 @@ const DashboardView = () => {
       onClick: () => openDialog("selfTestOpen"),
       tone: "border-border bg-muted text-foreground/90 hover:bg-accent",
     },
+    {
+      label: scanning ? "Scanning project…" : "Scan Project Files",
+      icon: ScanSearch,
+      onClick: () => void scan(),
+      tone: "border-primary/30 bg-primary/5 text-primary-200 hover:bg-primary/15",
+      disabled: !canEdit || scanning || !selectedId || selectedId === "inbox",
+    },
   ];
 
   return (
@@ -224,6 +253,10 @@ const DashboardView = () => {
                 {label}
               </button>
             ))}
+            <label className="flex items-center gap-2 pt-2 text-[11px] text-muted-foreground">
+              <input type="checkbox" checked={autoIndex} onChange={(e) => { setAutoIndex(e.target.checked); localStorage.setItem(`brain-auto-index:${selectedId ?? ""}`, e.target.checked ? "on" : "off"); }} />
+              Automatically rescan this project every 30 seconds
+            </label>
           </CardContent>
         </Card>
         </BentoReveal>
