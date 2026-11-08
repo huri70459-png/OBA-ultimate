@@ -29,6 +29,7 @@ export const TimelineView = () => {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount: state lands in async continuations, not a sync render cascade
     void load();
   }, [load]);
 

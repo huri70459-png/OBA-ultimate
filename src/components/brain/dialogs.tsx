@@ -306,6 +306,7 @@ export const SearchDialog = () => {
   const { toast } = useToast();
 
   const [query, setQuery] = useState(seed);
+  const [prevSearch, setPrevSearch] = useState({ open, seed });
   const [results, setResults] = useState<BrainItem[]>([]);
   const [solutions, setSolutions] = useState<CrossProjectSolution[]>([]);
   const [mode, setMode] = useState<"vault" | "cross">("vault");
@@ -343,15 +344,21 @@ export const SearchDialog = () => {
     [toast, details],
   );
 
-  useEffect(() => {
-    if (open && seed) {
-      setQuery(seed);
-      void run(seed, mode);
-    }
+  // Sync the dialog with its open/seed inputs (render-phase adjustment, not an effect cascade)
+  if (open !== prevSearch.open || seed !== prevSearch.seed) {
+    setPrevSearch({ open, seed });
+    if (open && seed) setQuery(seed);
     if (!open) {
       setRan(false);
       setResults([]);
       setSolutions([]);
+    }
+  }
+
+  useEffect(() => {
+    if (open && seed) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-open: state lands in async continuations, not a sync render cascade
+      void run(seed, mode);
     }
   }, [open, seed, mode, run]);
 
@@ -512,6 +519,7 @@ export const SelfTestDialog = () => {
 
   // Re-run the harness every time the dialog opens (runTest is stable via useCallback)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-open: state lands in async continuations, not a sync render cascade
     if (open) void runTest();
   }, [open, runTest]);
 

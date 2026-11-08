@@ -106,6 +106,7 @@ export const SettingsDialog = () => {
   const [showToken, setShowToken] = useState(false);
   const [agentTokenVisible, setAgentTokenVisible] = useState(""); // generated token shown once
   const [probe, setProbe] = useState<ProbeResult | null>(null);
+  const [prevOpen, setPrevOpen] = useState(open);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -129,10 +130,19 @@ export const SettingsDialog = () => {
     }
   }, [toast]);
 
+  // Reset transient dialog state when it opens (render-phase adjustment, not an effect cascade)
+  if (open && !prevOpen) {
+    setPrevOpen(true);
+    setProbe(null);
+    setAgentTokenVisible("");
+  }
+  if (!open && prevOpen) {
+    setPrevOpen(false);
+  }
+
   useEffect(() => {
     if (open) {
-      setProbe(null);
-      setAgentTokenVisible("");
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-open: state lands in async continuations, not a sync render cascade
       void load();
     }
   }, [open, load]);
