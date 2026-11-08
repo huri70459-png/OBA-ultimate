@@ -55,11 +55,12 @@ export const VaultView = () => {
   // Live local intelligence preview — route is a pure sync function; analysis is
   // async (v2 optional LLM enrichment), so it lands in state via useEffect.
   const [live, setLive] = useState<{ route: ModelRoute; analysis: AnalysisResult } | null>(null);
+  // Clear the preview while the composer is empty (render-phase adjustment, not an effect cascade)
+  if (!body.trim() && live !== null) {
+    setLive(null);
+  }
   useEffect(() => {
-    if (!body.trim()) {
-      setLive(null);
-      return;
-    }
+    if (!body.trim()) return;
     const route = routeAiModel({ itemType, rawContent: body, hasImage: itemType === "screenshot" });
     let cancelled = false;
     void analyzeCapture({
