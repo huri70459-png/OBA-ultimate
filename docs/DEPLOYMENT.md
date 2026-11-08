@@ -43,8 +43,8 @@ npm run test:regression  # full board against a running server
 
 ## 3. Continuous Deployment & environments
 
-- **Development** — your workstation: `npm run dev`, SQLite at `db/custom.db`,
-  vault at `ProjectBrainVault/`.
+- **Development (native Windows)** — your workstation: `npm run dev` on `http://127.0.0.1:3000`, SQLite at `prisma/db/custom.db`, vault at `ProjectBrainVault/`. `next.config.ts` `allowedDevOrigins` must include `127.0.0.1`/`localhost` (with and without `:3000`/`:3003`) or HMR and `fetch` are blocked.
+- **Docker (production-like)** — `docker compose up -d brain-os` on `http://127.0.0.1:3001`, SQLite in `brain_db` volume, vault in `brain_vault`. Windows host paths are bind-mounted: `D:/Projects/GLM CORTEXT ORCASTRATOR → /projects/cortex:ro` and `D:/Projects/OBA Ultimate → /projects/oba:ro` (see `docker-compose.yml`). The DB `rootPath` for those projects must be the container path (`/projects/cortex`), while native uses the Windows path.
 - **Staging** — any disposable host running the CI image against mounted volumes:
   `docker run -p 3000:3000 -v brainos-db:/app/db -v brainos-vault:/app/ProjectBrainVault brain-os:ci-<sha>`.
 - **Production** — same image, tagged from `main` after verification
@@ -68,3 +68,4 @@ npm run test:regression  # full board against a running server
   "decouple deployment from release").
 - Version scheme: semver in `package.json` + the engine version echoed by
   `GET /api/health` (`version`, `uptime_seconds`, `memory_rss_bytes`).
+- After `docker cp` of a DB file, fix ownership: `docker exec -u root <c> chown -R brainos:brainos /app/db /app/prisma/db` or the next write gets `attempt to write a readonly database` (SQLite needs directory write for `-journal`/`-wal`).

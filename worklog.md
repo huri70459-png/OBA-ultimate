@@ -390,3 +390,21 @@ Stage Summary:
 - Blueprint Phase 1 = COMPLETE for the trust core (audit trail, sha256 asset ledger + dedup, durable queue with leases/backoff/dead-letter + real handlers, provenance primitives, feature-flags pre-existing v2.4, revisions pre-existing ItemRevision); blueprint's BrainClaim/BrainLLMRun/BrainRetrievalTrace deliberately deferred to Phase 3 (extraction/RAG consumers define their shape)
 - Board 245 -> 273 checks; engine string intentionally still "2.5" (avoid suite churn, documented)
 - Next: Phase 2 (FTS5 chunker/indexer/hybrid retrieval + eval board) per blueprint order; then Phase 3 cited RAG; user should re-push workspace to GitHub so public repo = local reality (auditor's 3-commit/95-check snapshot drift resolved)
+
+---
+Task ID: 18
+Date: 2026-11-08
+Agent: Hermes (native Windows + Docker)
+Task: Resolve Docker scan failure + native PIN gate + doc handoff (user constrain: 100% root-cause confidence with proof)
+
+Root causes (tight-loop proven):
+- Docker scan: /projects/cortex missing in container (docker exec ls failed), DB said /projects/cortex but compose had no mount → 0 files + "Check the project path" toast. Second failure after cp: DB file/dir owned root → SQLite "attempt to write a readonly database" on Item.create().
+- Native PIN: POST /api/auth/pin 303 + Set-Cookie + session 200 passed via curl, but UI stayed "Authentication required" even after reload. next.config allowedDevOrigins blocked HMR/fetch from 127.0.0.1, and AuthGate rendered locked while bootSession===null and a concurrent bootstrap 401 dispatched brain:auth-expired which overwrote the valid session.
+
+Fixes (verified with curl + browser screenshots):
+- docker-compose.yml: bind-mount D:/Projects/GLM CORTEXT ORCASTRATOR → /projects/cortex:ro and D:/Projects/OBA Ultimate → /projects/oba:ro; DB rootPath /projects/cortex (Docker) vs Windows path (native). After cp, chown -R brainos:brainos /app/db /app/prisma/db + restart. Tight loop: POST /api/project-scan → 193 imported, 0 errors (was 500), graph 0 → 329 edges.
+- AuthGate.tsx: show "Checking authentication…" spinner while bootSession===null, re-verify session on AUTH_EXPIRED before locking. next.config.ts: allowedDevOrigins += 127.0.0.1, localhost (bare). Tight loop: browser /local-pin 984202 → /?pin-login=1 renders Dashboard 5 projects/223 captures/329 edges (was locked card). curl session/projects remain 200.
+- USER-GUIDE.md + DEPLOYMENT.md: document native :3000 vs Docker :3001, PIN spinner, Docker mounts + rootPath duality, chown after cp.
+
+Verification: tsc clean, lint clean, build green, native :3000 200, Docker :3001 healthy, both PIN + scan + graph verified via browser.
+Commit: e925799d (pushed), docs at USER-GUIDE.md / DEPLOYMENT.md.
