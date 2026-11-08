@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
   // The Docker development wrapper is accessed from the Windows host at
   // 127.0.0.1:3003. Allow that origin so Next's client bundle and hydration
   // are not blocked by the container's internal localhost:3000 origin.
-  allowedDevOrigins: ["127.0.0.1:3000", "localhost:3000", "127.0.0.1:3003", "localhost:3003"],
+  allowedDevOrigins: ["127.0.0.1:3000", "localhost:3000", "127.0.0.1:3003", "localhost:3003", "127.0.0.1", "localhost"],
   reactStrictMode: true,
   typescript: {
     ignoreBuildErrors: false,

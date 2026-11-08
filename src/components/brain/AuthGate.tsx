@@ -53,17 +53,40 @@ const AuthGate = ({ children }: { children: React.ReactNode }) => {
     };
     void check();
 
-    const onExpired = () => {
+    const onExpired = async () => {
+      // Re-verify before locking — a single 401 from a background fetch (e.g. bootstrap
+      // racing the initial session check) must not override a valid cookie that the
+      // session endpoint still considers authenticated.
+      try {
+        const data = await apiGet<SessionResponse>("/api/auth/session");
+        if (data.authenticated || data.mode === "open") {
+          setBootSession(data);
+          setSession(data);
+          return;
+        }
+      } catch {}
       useAuthStore.setState({ status: "locked", user: null, error: null });
     };
     window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
     return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
   }, [setSession]);
 
+  // While the initial session check is in flight, show a spinner — never flash the
+  // locked card and never let a transient 401 from a concurrent bootstrap fetch win.
+  if (bootSession === null) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Checking authentication…
+        </div>
+      </div>
+    );
+  }
+
   // Keep the gate tied to the freshly verified server session. Persisted client
   // state can hydrate after this effect and must never make a valid cookie look
   // logged out (or keep the login card visible after a successful PIN login).
-  if (bootSession?.mode === "open" || bootSession?.authenticated || status === "open" || status === "authenticated" || (status === "setup" && skipped)) {
+  if (bootSession.mode === "open" || bootSession.authenticated || status === "open" || status === "authenticated" || (status === "setup" && skipped)) {
     return <>{children}</>;
   }
 
