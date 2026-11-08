@@ -25,11 +25,11 @@ import { readdirSync, existsSync, readFileSync } from "fs";
 import path from "path";
 import { PrismaClient } from "@prisma/client";
 
-process.env.DATABASE_URL = process.env.DATABASE_URL || "file:/home/z/my-project/db/custom.db";
+process.env.DATABASE_URL = process.env.DATABASE_URL || "file:./prisma/db/custom.db";
 const prisma = new PrismaClient({ log: [] });
 
 const BASE = "http://localhost:3000";
-const ROOT = "/home/z/my-project";
+const ROOT = path.resolve(decodeURIComponent(new URL(".", import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1"), "..");
 const results = [];
 let failures = 0;
 

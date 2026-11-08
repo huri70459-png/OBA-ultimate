@@ -19,7 +19,7 @@
 import http from "http";
 import { PrismaClient } from "@prisma/client";
 
-process.env.DATABASE_URL = process.env.DATABASE_URL || "file:/home/z/my-project/db/custom.db";
+process.env.DATABASE_URL = process.env.DATABASE_URL || "file:./prisma/db/custom.db";
 const prisma = new PrismaClient({ log: [] });
 
 const BASE = "http://localhost:3000";
@@ -274,10 +274,15 @@ async function configure(patch) {
     `provider=${fc.provider} window=${fc.dedup_window_hours} keys=${fc.openai_api_key?.configured}/${fc.anthropic_api_key?.configured}/${fc.gemini_api_key?.configured} token=${fc.agent_ingest_token?.configured}`
   );
   const finalHealth = await jfetch("/api/health");
+  // Intent: with no cloud keys configured the auto chain must stay local-only.
+  // deterministic-offline on machines without Ollama, local ollama where the
+  // daemon is reachable (e.g. a Windows dev box running Ollama) — both are
+  // valid, cloud providers are not.
+  const finalProvider = finalHealth.data.llm_backend?.provider;
   check(
-    "J2 health: auto chain -> deterministic-offline (no keys configured)",
-    finalHealth.data.llm_backend?.provider === "deterministic-offline" && finalHealth.data.config?.provider_setting === "auto",
-    `backend=${finalHealth.data.llm_backend?.provider} setting=${finalHealth.data.config?.provider_setting}`
+    "J2 health: auto chain -> local-only backend (no keys configured)",
+    (finalProvider === "deterministic-offline" || finalProvider === "ollama") && finalHealth.data.config?.provider_setting === "auto",
+    `backend=${finalProvider} setting=${finalHealth.data.config?.provider_setting}`
   );
 
   console.log(`\n=== v2.2 verify: ${results.length - failures}/${results.length} PASS, ${failures} FAIL ===`);

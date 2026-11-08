@@ -18,7 +18,7 @@
 import { readFileSync, existsSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-const ROOT = "/home/z/my-project";
+const ROOT = join(decodeURIComponent(new URL(".", import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1"), "..");
 const BASE = "http://localhost:3000";
 const results = [];
 let failures = 0;

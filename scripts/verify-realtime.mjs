@@ -19,7 +19,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const ROOT = new URL("..", import.meta.url).pathname;
+const ROOT = decodeURIComponent(new URL("..", import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1");
 
 let pass = 0;
 let fail = 0;
@@ -139,10 +139,14 @@ const ensureService = async () => {
     await connectWithTimeout({ reconnectionAttempts: 1 });
     return { started: false };
   } catch {
-    const child = spawn("bun", ["run", "index.ts"], {
+    // Windows: volta installs bun as a .cmd shim, which CreateProcess cannot
+    // launch directly — route through the shell there.
+    const bunBin = process.platform === "win32" ? "bun.cmd" : "bun";
+    const child = spawn(bunBin, ["run", "index.ts"], {
       cwd: `${ROOT}/mini-services/realtime-service`,
       detached: true,
       stdio: "ignore",
+      shell: process.platform === "win32",
     });
     child.unref();
     for (let i = 0; i < 20; i++) {

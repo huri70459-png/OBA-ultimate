@@ -18,7 +18,7 @@ import fs from "fs";
 import path from "path";
 import { PrismaClient } from "@prisma/client";
 
-process.env.DATABASE_URL = process.env.DATABASE_URL || "file:/home/z/my-project/db/custom.db";
+process.env.DATABASE_URL = process.env.DATABASE_URL || "file:./prisma/db/custom.db";
 const prisma = new PrismaClient({ log: [] });
 
 const BASE = "http://localhost:3000";
