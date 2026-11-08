@@ -6,8 +6,8 @@
 // Captured content is rendered as escaped React text (never
 // dangerouslySetInnerHTML) so pasted markup can't create XSS risk.
 
-import { useEffect, useState } from "react";
-import { Copy, Pencil, Save, ShieldCheck, Sparkles, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Copy, Pencil, Save, ShieldCheck, Sparkles, X, ChevronDown, ChevronUp, Layers3, GripVertical } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { analyzeCapture } from "@/lib/brain/analyzer";
 import { routeAiModel } from "@/lib/brain/model-routing";
@@ -50,6 +50,7 @@ export const VaultView = () => {
   const [triagingId, setTriagingId] = useState<string | null>(null);
   const [resolveId, setResolveId] = useState<string | null>(null);
   const [resolveNote, setResolveNote] = useState("");
+  const [chatOpen, setChatOpen] = useState(false);
 
   // Live local intelligence preview — route is a pure sync function; analysis is
   // async (v2 optional LLM enrichment), so it lands in state via useEffect.
@@ -196,6 +197,16 @@ export const VaultView = () => {
   // v2.1 inbox triage & resolution
   // ----------------------------------
   const isInbox = selectedId === "inbox" || details?.project.id === "inbox";
+  const clusters = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of details?.items ?? []) {
+      const source = typeof item.metadata.indexed_source_path === "string" ? item.metadata.indexed_source_path : "Captured notes";
+      const top = source.split(/[\\/]/)[0];
+      const group = source === "Captured notes" ? "Captured notes" : top === "docs" || top === "documentation" ? "Core docs" : /worklog|progress|session/i.test(source) ? "Worklog & progress" : /test|spec|schema/i.test(source) ? "Implementation & tests" : /readme|goal|plan|vision/i.test(source) ? "Goals & plans" : "Project files";
+      counts.set(group, (counts.get(group) ?? 0) + 1);
+    }
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  }, [details?.items]);
 
   const triage = async (item: BrainItem) => {
     const target = triageTarget[item.id];
@@ -247,10 +258,14 @@ export const VaultView = () => {
       {/* Item stream */}
       <div className="hidden w-72 shrink-0 flex-col overflow-hidden border-r border-border bg-sidebar/40 lg:flex">
         <div className="flex items-center justify-between border-b border-border/70 p-3">
-          <span className="text-xs font-semibold text-foreground/90">Captured Project Memory</span>
+          <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground/90"><Layers3 className="h-3.5 w-3.5 text-primary-300" />Project Library</span>
           <span className="rounded bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
             {details?.items.length ?? 0}
           </span>
+        </div>
+        <div className="border-b border-border/60 p-2">
+          <p className="mb-1 px-1 text-[10px] uppercase tracking-wider text-muted-foreground">Clusters</p>
+          <div className="flex flex-wrap gap-1">{clusters.map(([label, count]) => <span key={label} className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] text-muted-foreground" title={`${count} items`}>{label} <b className="text-foreground">{count}</b></span>)}</div>
         </div>
         <div className="brain-scroll min-h-0 flex-1 divide-y divide-border/50 overflow-y-auto">
           {loading && <div className="p-4 text-xs text-muted-foreground">Loading vault…</div>}
@@ -486,16 +501,18 @@ export const VaultView = () => {
           </div>
         )}
 
+        <div className="relative min-h-[360px] flex-1">
         <textarea
-          rows={14}
+          rows={18}
           value={body}
           onChange={(e) => setBody(e.target.value)}
           placeholder={
             "Paste terminal error, write an architectural decision ('Decision: ... Reason: ... Alternatives: ...'), or type notes...\n\nAuto-detection: missing modules → install fix · Decision blocks → decision graph · file mentions → knowledge graph"
           }
           aria-label="Capture content"
-          className="min-h-[240px] w-full flex-1 resize-none rounded-xl border border-border bg-background/70 p-4 font-mono text-xs leading-relaxed text-foreground/95 placeholder-muted-foreground/50 focus:border-primary focus:outline-none"
+          className="h-full min-h-[360px] w-full resize-y rounded-xl border border-border bg-background/70 p-4 font-mono text-xs leading-relaxed text-foreground/95 placeholder-muted-foreground/50 focus:border-primary focus:outline-none"
         />
+        <div className="pointer-events-none absolute bottom-2 right-2 text-muted-foreground/50"><GripVertical className="h-4 w-4" /></div></div>
 
         <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
           <span className="font-mono">
@@ -551,11 +568,10 @@ export const VaultView = () => {
         )}
 
         {/* Grounded chat — evidence-first Q&A over this project's vault */}
-        <ChatWidget
-          key={isInbox ? "inbox" : details?.project.id ?? "inbox"}
-          projectId={isInbox ? "" : details?.project.id ?? ""}
-          className="h-[460px] min-h-[320px] shrink-0"
-        />
+        <div className="shrink-0 rounded-xl border border-border bg-card/50">
+          <button onClick={() => setChatOpen((open) => !open)} className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-semibold text-foreground/90"><span>Grounded Chat <span className="ml-1 font-normal text-muted-foreground">Ask this project’s evidence</span></span>{chatOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}</button>
+          {chatOpen && <ChatWidget key={isInbox ? "inbox" : details?.project.id ?? "inbox"} projectId={isInbox ? "" : details?.project.id ?? ""} className="h-[300px] min-h-[240px]" />}
+        </div>
 
         <div className="pb-2">
           <button

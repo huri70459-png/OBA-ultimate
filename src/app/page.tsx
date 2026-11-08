@@ -26,6 +26,7 @@ import {
   SearchDialog,
   SelfTestDialog,
 } from "@/components/brain/dialogs";
+import { HelpDialog } from "@/components/brain/HelpDialog";
 import { SettingsDialog } from "@/components/brain/SettingsDialog";
 
 const TABS: Array<{ id: WorkspaceTab; label: string; icon: typeof FileText }> = [
@@ -153,6 +154,7 @@ const BrainWorkspacePage = () => {
         <SelfTestDialog />
         <SettingsDialog />
         <FeedbackDialog />
+        <HelpDialog />
       </div>
     </AuthGate>
   );

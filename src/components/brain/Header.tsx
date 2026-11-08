@@ -5,7 +5,7 @@
 // session user menu (auth).
 
 import { useState } from "react";
-import { LogOut, Search, ShieldCheck, Zap, Stethoscope, DatabaseZap, Cpu, Sun, Moon, MessageSquarePlus } from "lucide-react";
+import { LogOut, Search, ShieldCheck, Zap, Stethoscope, DatabaseZap, Cpu, Sun, Moon, MessageSquarePlus, CircleHelp } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useToast } from "@/hooks/use-toast";
 import { trackEvent } from "@/lib/telemetry";
@@ -126,6 +126,14 @@ export const Header = () => {
         {/* Theme toggle (Tier-1: light + dark mode support). Icons are picked
             by CSS via the .dark class next-themes sets pre-paint — no client
             state, so SSR markup and hydration always agree. */}
+        <button
+          onClick={() => openDialog("helpOpen")}
+          title="Open documentation and usage guide"
+          aria-label="Open documentation"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary-300"
+        >
+          <CircleHelp className="h-4 w-4" />
+        </button>
         <button
           onClick={() => {
             const next = resolvedTheme === "dark" ? "light" : "dark";

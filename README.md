@@ -25,6 +25,41 @@ npm run db:push               # create/sync the SQLite schema (dev workflow)
 npm run dev                   # http://localhost:3000
 ```
 
+For the full product walkthrough, see [`docs/USER-GUIDE.md`](docs/USER-GUIDE.md).
+
+## Stack
+
+- Next.js 16 App Router and React 19
+- TypeScript and Tailwind CSS
+- Prisma ORM with SQLite for local persistence
+- Zustand for workspace state and TanStack Query for server state
+- Deterministic offline analyzer/embeddings with optional Ollama or compatible LLM backends
+- Docker Compose for the standalone runtime
+- Optional Node MCP server and Python desktop capture agent
+
+## Configuration
+
+Copy `.env.example` to `.env`. The important values are:
+
+- `DATABASE_URL`: SQLite URL, normally `file:./db/custom.db` locally.
+- LLM provider keys/base URLs: optional; offline mode works without them.
+- Auth/session settings: use Settings or the protected deployment environment.
+- Agent ingest token: configure through Settings; never commit it.
+
+Project scanning is manual by default. The Dashboard can enable automatic per-project rescans. It only runs while the app is open and uses the same extension, secret, directory, and size filters as manual scans.
+
+## Docker
+
+```bash
+docker compose up -d --build
+docker compose ps
+curl http://127.0.0.1:3001/api/health
+docker compose logs -f brain-os
+docker compose down
+```
+
+The Compose service exposes port `3001` and persists `brain_db`, `brain_logs`, and `brain_vault` volumes. If dependency installation cannot reach the registry, retry with network access and inspect `docker compose build --progress=plain brain-os`.
+
 First boot seeds 3 demo projects + 2 captures so the workspace is alive in seconds. The schema can also be applied via migrations on servers/CI:
 
 ```bash
@@ -139,3 +174,14 @@ All of the above is pinned by the committed `scripts/verify-trust.mjs` suite —
 - Auth: in-house credential accounts (scrypt + HMAC-SHA256 JWT in an httpOnly cookie) with RBAC; API access can be enforced or opened per deployment; desktop agents use a dedicated ingest token.
 - Realtime chat uses the platform gateway contract (`/?XTransformPort=` routing in the sandbox Caddyfile); outside that sandbox, deploy a fixed-upstream reverse proxy (see `docs/DEPLOYMENT.md`).
 - `.env` is git-ignored; `.env.example` documents every variable the engine reads.
+
+## Troubleshooting checklist
+
+1. Check the correct app identity and port before restarting anything.
+2. Check `/api/health` for status and backend mode.
+3. Run `npm run type-check` and `npm run lint` after code changes.
+4. Run `Self-Test` from the UI for the live workflow check.
+5. Inspect `docker compose logs brain-os` for container failures.
+6. If Prisma fails, verify `DATABASE_URL`, run `npm run db:generate`, and use `npm run db:migrate:deploy` for an existing database.
+7. If a project is empty, confirm the root path and run the explicit project scan.
+8. Do not use `npm audit fix --force` without reviewing major-version changes.

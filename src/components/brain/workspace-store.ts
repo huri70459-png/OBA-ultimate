@@ -23,6 +23,7 @@ interface DialogState {
   selfTestOpen: boolean;
   settingsOpen: boolean;
   feedbackOpen: boolean; // v2.4: in-app feedback widget (blueprint "User Feedback Collection")
+  helpOpen: boolean;
 }
 
 interface WorkspaceState extends DialogState {
@@ -68,6 +69,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   selfTestOpen: false,
   settingsOpen: false,
   feedbackOpen: false,
+  helpOpen: false,
 
   bootstrap: async () => {
     try {
