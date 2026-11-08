@@ -8,7 +8,8 @@ WORKDIR /app
 COPY package.json ./
 COPY package-lock.json ./
 COPY prisma ./prisma
-RUN npm ci --omit=optional --ignore-scripts
+RUN npm ci --ignore-scripts
+RUN npm install --no-save lightningcss-linux-x64-gnu @tailwindcss/oxide-linux-x64-gnu
 RUN npx prisma generate
 
 FROM node:20-slim AS builder
